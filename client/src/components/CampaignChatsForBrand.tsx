@@ -162,6 +162,7 @@ export function CampaignChatsForBrand({ campaignId, currentUser }: CampaignChats
           campaignId={campaignId}
           proposalId={proposal.id}
           influencerId={proposal.influencer.id}
+          brandId={currentUser.id}
           currentUser={currentUser}
           campaignTitle={`Chat with ${proposal.influencer.firstName} ${proposal.influencer.lastName}`}
           isActive={true}
@@ -251,6 +252,7 @@ export function CampaignChatsForBrand({ campaignId, currentUser }: CampaignChats
                   campaignId={campaignId}
                   proposalId={proposal.id}
                   influencerId={proposal.influencer.id}
+                  brandId={currentUser.id}
                   currentUser={currentUser}
                   campaignTitle={`Chat with ${proposal.influencer.firstName} ${proposal.influencer.lastName}`}
                   isActive={activeTab === proposal.id}

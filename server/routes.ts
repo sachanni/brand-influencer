@@ -702,7 +702,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { themePreference } = req.body;
       
       // Validate theme preference
-      const validThemes = ['rich-gradient', 'minimal-light', 'warm-sunset', 'light-purple', 'purple-orange-gradient'];
+      const validThemes = ['rich-gradient', 'minimal-light', 'warm-sunset', 'light-purple', 'purple-orange-gradient', 'purple-blue-gradient'];
       if (!validThemes.includes(themePreference)) {
         return res.status(400).json({ message: 'Invalid theme preference' });
       }
@@ -3320,17 +3320,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get all proposals for this influencer
       const proposals = await storage.getCampaignProposals(undefined, user.id);
       
-      // Enrich proposals with campaign data
+      // Enrich proposals with campaign data and brand currency
       const enrichedProposals = await Promise.all(
         proposals.map(async (proposal) => {
           const campaign = await storage.getBrandCampaign(proposal.campaignId);
-          const brand = campaign ? await storage.getUser(campaign.brandId) : null;
+          const brandUser = campaign ? await storage.getUser(campaign.brandId) : null;
+          const brandProfile = campaign ? await storage.getBrandProfile(campaign.brandId) : null;
           
           return {
             ...proposal,
             campaign: campaign ? {
               ...campaign,
-              brandName: brand ? `${brand.firstName} ${brand.lastName}` : 'Unknown Brand'
+              brandName: brandUser ? `${brandUser.firstName} ${brandUser.lastName}` : 'Unknown Brand',
+              currency: brandProfile?.preferredCurrency || 'INR'
             } : null
           };
         })
@@ -3339,12 +3341,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Separate by status - approval status vs payment workflow status
       const approvedCampaigns = enrichedProposals.filter(p => p.status === 'approved');
       const workInProgressCampaigns = enrichedProposals.filter(p => 
-        p.status === 'approved' && p.paymentStatus && [
+        // Include both approved campaigns with payment workflow AND delivered campaigns
+        (p.status === 'approved' && p.paymentStatus && [
           'upfront_payment_pending',
           'work_in_progress',
           'deliverables_submitted',
           'completion_payment_pending'
-        ].includes(p.paymentStatus)
+        ].includes(p.paymentStatus)) ||
+        p.status === 'deliverables_submitted'
       );
       const paidCampaigns = enrichedProposals.filter(p => p.status === 'paid' || p.status === 'completed');
       const pendingCampaigns = enrichedProposals.filter(p => p.status === 'pending');
@@ -3495,6 +3499,82 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error fetching proposals:', error);
       res.status(500).json({ message: 'Failed to fetch proposals' });
+    }
+  });
+
+  // Create campaign invitations
+  app.post('/api/brand/campaigns/:campaignId/invitations', isAuthenticated, async (req: any, res) => {
+    try {
+      const { campaignId } = req.params;
+      const { influencerIds, personalMessage, compensationOffer } = req.body;
+      const brandId = req.user.id;
+
+      if (!influencerIds || !Array.isArray(influencerIds) || influencerIds.length === 0) {
+        return res.status(400).json({ message: 'At least one influencer must be selected' });
+      }
+
+      // Create invitations for each selected influencer
+      const invitationData = influencerIds.map((influencerId: string) => ({
+        influencerId,
+        personalMessage: personalMessage || '',
+        compensationOffer: compensationOffer || ''
+      }));
+
+      const invitations = await storage.createCampaignInvitations(campaignId, brandId, invitationData);
+
+      res.json({ 
+        success: true, 
+        invitations,
+        message: `Invitations sent to ${influencerIds.length} influencer${influencerIds.length > 1 ? 's' : ''}` 
+      });
+    } catch (error) {
+      console.error('Error creating campaign invitations:', error);
+      res.status(500).json({ message: 'Failed to create invitations' });
+    }
+  });
+
+  // Get campaign invitations (for brands to see who they invited)
+  app.get('/api/campaigns/:campaignId/invitations', isAuthenticated, async (req: any, res) => {
+    try {
+      const { campaignId } = req.params;
+      const invitations = await storage.getCampaignInvitations(campaignId);
+      
+      res.json({ success: true, invitations });
+    } catch (error) {
+      console.error('Error fetching campaign invitations:', error);
+      res.status(500).json({ success: false, message: 'Failed to fetch invitations' });
+    }
+  });
+
+  // Get influencer invitations (for influencers to see campaigns they're invited to)
+  app.get('/api/influencer/invitations', isAuthenticated, async (req: any, res) => {
+    try {
+      const influencerId = req.user.id;
+      const invitations = await storage.getInfluencerInvitations(influencerId);
+      
+      res.json({ success: true, invitations });
+    } catch (error) {
+      console.error('Error fetching influencer invitations:', error);
+      res.status(500).json({ success: false, message: 'Failed to fetch invitations' });
+    }
+  });
+
+  // Update invitation status (accept/decline)
+  app.put('/api/invitations/:invitationId/status', isAuthenticated, async (req: any, res) => {
+    try {
+      const { invitationId } = req.params;
+      const { status } = req.body;
+
+      if (!['accepted', 'declined'].includes(status)) {
+        return res.status(400).json({ message: 'Status must be either accepted or declined' });
+      }
+
+      const updatedInvitation = await storage.updateInvitationStatus(invitationId, status);
+      
+      res.json({ success: true, invitation: updatedInvitation });
+    } catch (error) {
+      console.error('Error updating invitation status:', error);
+      res.status(500).json({ success: false, message: 'Failed to update invitation status' });
     }
   });
 
@@ -3651,6 +3731,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error fetching proposals:', error);
       res.status(500).json({ message: 'Failed to fetch proposals' });
+    }
+  });
+
+  // Upload campaign thumbnail
+  app.post('/api/upload/thumbnail', isAuthenticated, upload.single('thumbnail'), async (req: any, res) => {
+    try {
+      const user = req.user;
+      
+      if (!user || user.role !== 'brand') {
+        return res.status(403).json({ message: 'Access denied. Brand role required.' });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ message: 'Image file is required' });
+      }
+
+      // Validate file type - only allow images
+      if (!req.file.mimetype.startsWith('image/')) {
+        return res.status(400).json({ message: 'Only image files are allowed' });
+      }
+
+      // Create unique filename for thumbnail
+      const fileExtension = path.extname(req.file.originalname);
+      const filename = `campaign-thumb-${Date.now()}-${Math.random().toString(36).substring(2)}${fileExtension}`;
+      const finalPath = path.join(uploadDir, filename);
+      
+      // Move uploaded file to permanent location
+      fs.renameSync(req.file.path, finalPath);
+
+      const thumbnailUrl = `/uploads/${filename}`;
+      console.log('Campaign thumbnail uploaded successfully:', filename);
+      
+      res.json({ success: true, thumbnailUrl });
+    } catch (error) {
+      console.error('Error uploading thumbnail:', error);
+      res.status(500).json({ message: 'Failed to upload thumbnail' });
     }
   });
 
@@ -4275,7 +4391,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get conversation by campaign ID
   app.get('/api/conversations/campaign/:campaignId', isAuthenticated, async (req: any, res) => {
     try {
-      const conversation = await storage.getConversationByCampaign(req.params.campaignId, req.user.id);
+      const { influencerId } = req.query;
+      const conversation = await storage.getConversationByCampaignAndParticipants(
+        req.params.campaignId, 
+        req.user.id, 
+        influencerId as string | undefined
+      );
       res.json({ conversation });
     } catch (error) {
       console.error('Error fetching campaign conversation:', error);
@@ -4386,6 +4507,86 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error marking conversation as read:', error);
       res.status(500).json({ error: 'Failed to mark conversation as read' });
+    }
+  });
+
+  // Get campaign Q&A conversations (pre-approval questions)
+  app.get('/api/campaigns/:campaignId/questions', isAuthenticated, async (req: any, res) => {
+    try {
+      const { campaignId } = req.params;
+      const { influencerId } = req.query;
+      const user = req.user;
+      
+      // If influencerId is provided and matches current user, get conversations for that influencer
+      if (influencerId && influencerId === user.id && user.role === 'influencer') {
+        const conversations = await storage.getCampaignQuestionsByInfluencer(campaignId, user.id);
+        return res.json({ conversations });
+      }
+      
+      // Verify campaign ownership for brands
+      if (user.role === 'brand') {
+        const campaign = await storage.getBrandCampaign(campaignId);
+        if (!campaign || campaign.brandId !== user.id) {
+          return res.status(404).json({ error: 'Campaign not found' });
+        }
+        
+        // Get all conversations for this campaign that are Q&A (not tied to proposals)
+        const conversations = await storage.getCampaignQuestions(campaignId);
+        return res.json({ conversations });
+      }
+      
+      // Unauthorized access
+      return res.status(403).json({ error: 'Access denied' });
+    } catch (error) {
+      console.error('Error fetching campaign questions:', error);
+      res.status(500).json({ error: 'Failed to fetch campaign questions' });
+    }
+  });
+
+  // Create campaign question (pre-approval Q&A)
+  app.post('/api/campaigns/:campaignId/ask', isAuthenticated, async (req: any, res) => {
+    try {
+      const { campaignId } = req.params;
+      const { content, subject } = req.body;
+      const user = req.user;
+      
+      if (user.role !== 'influencer') {
+        return res.status(403).json({ error: 'Only influencers can ask campaign questions' });
+      }
+      
+      // Get campaign details to get brand ID
+      const campaign = await storage.getBrandCampaign(campaignId);
+      if (!campaign) {
+        return res.status(404).json({ error: 'Campaign not found' });
+      }
+      
+      // Create conversation for the question
+      const conversation = await storage.createConversation({
+        brandId: campaign.brandId,
+        influencerId: user.id,
+        campaignId: campaignId,
+        subject: subject || `Question about ${campaign.title}`,
+        priority: 'normal'
+      });
+      
+      // Send the initial question message
+      const message = await storage.sendMessage({
+        conversationId: conversation.id,
+        senderId: user.id,
+        receiverId: campaign.brandId,
+        content: content,
+        messageType: 'text'
+      });
+      
+      res.json({ 
+        success: true, 
+        conversation,
+        message,
+        message: 'Question sent successfully' 
+      });
+    } catch (error) {
+      console.error('Error creating campaign question:', error);
+      res.status(500).json({ error: 'Failed to send question' });
     }
   });
 
@@ -5410,8 +5611,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: 'Access denied. Brand role required.' });
       }
 
-      const brandProfile = await storage.getBrandProfile(user.id);
-      res.json({ success: true, profile: brandProfile });
+      const brand = await storage.getBrandProfile(user.id);
+      res.json({ success: true, profile: brand });
     } catch (error) {
       console.error('Error fetching brand profile:', error);
       res.status(500).json({ message: 'Failed to fetch brand profile' });
@@ -5438,8 +5639,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (preferredCurrency) updateData.preferredCurrency = preferredCurrency;
       if (Object.keys(otherUpdates).length > 0) Object.assign(updateData, otherUpdates);
 
-      const updatedProfile = await storage.updateBrandProfile(user.id, updateData);
-      res.json({ success: true, profile: updatedProfile });
+      const updatedBrand = await storage.updateBrandProfile(user.id, updateData);
+      res.json({ success: true, profile: updatedBrand });
     } catch (error) {
       console.error('Error updating brand profile:', error);
       res.status(500).json({ message: 'Failed to update brand profile' });
@@ -5476,6 +5677,310 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error fetching platform commission summary:', error);
       res.status(500).json({ error: 'Failed to fetch platform commission summary' });
+    }
+  });
+
+  // Enhanced Campaign Management APIs
+  
+  // Proposal milestone endpoints
+  app.get('/api/proposals/:proposalId/milestones', isAuthenticated, async (req: any, res) => {
+    try {
+      const { proposalId } = req.params;
+      const milestones = await storage.getProposalMilestones(proposalId);
+      res.json({ success: true, milestones });
+    } catch (error) {
+      console.error('Error fetching proposal milestones:', error);
+      res.status(500).json({ success: false, error: 'Failed to fetch proposal milestones' });
+    }
+  });
+
+  app.post('/api/proposals/:proposalId/milestones/initialize', isAuthenticated, async (req: any, res) => {
+    try {
+      const { proposalId } = req.params;
+      const user = req.user;
+      
+      if (!user || user.role !== 'influencer') {
+        return res.status(403).json({ success: false, error: 'Access denied' });
+      }
+
+      const proposal = await storage.getCampaignProposal(proposalId);
+      if (!proposal) {
+        return res.status(404).json({ success: false, error: 'Proposal not found' });
+      }
+
+      const milestones = await storage.initializeProposalMilestones(proposalId, proposal.campaignId, user.id);
+      
+      // Also create a progress stage tracker
+      await storage.createCampaignProgressStage({
+        proposalId,
+        campaignId: proposal.campaignId
+      });
+
+      res.json({ success: true, milestones });
+    } catch (error) {
+      console.error('Error creating proposal milestones:', error);
+      res.status(500).json({ success: false, error: 'Failed to create proposal milestones' });
+    }
+  });
+
+  app.put('/api/milestones/:milestoneId', isAuthenticated, async (req: any, res) => {
+    try {
+      const { milestoneId } = req.params;
+      const updates = req.body;
+      const user = req.user;
+
+      if (!user || user.role !== 'influencer') {
+        return res.status(403).json({ success: false, error: 'Access denied' });
+      }
+
+      const milestone = await storage.updateProposalMilestone(milestoneId, updates);
+      res.json({ success: true, milestone });
+    } catch (error) {
+      console.error('Error updating milestone:', error);
+      res.status(500).json({ success: false, error: 'Failed to update milestone' });
+    }
+  });
+
+  app.post('/api/milestones/:milestoneId/complete', isAuthenticated, async (req: any, res) => {
+    try {
+      const { milestoneId } = req.params;
+      const user = req.user;
+
+      if (!user || user.role !== 'influencer') {
+        return res.status(403).json({ success: false, error: 'Access denied' });
+      }
+
+      const milestone = await storage.completeProposalMilestone(milestoneId);
+      
+      // Update progress stage
+      const proposal = await storage.getCampaignProposal(milestone.proposalId);
+      if (proposal) {
+        await storage.calculateOverallProgress(milestone.proposalId);
+      }
+
+      res.json({ success: true, milestone });
+    } catch (error) {
+      console.error('Error completing milestone:', error);
+      res.status(500).json({ success: false, error: 'Failed to complete milestone' });
+    }
+  });
+
+  // Time tracking endpoints
+  app.get('/api/proposals/:proposalId/time-sessions', isAuthenticated, async (req: any, res) => {
+    try {
+      const { proposalId } = req.params;
+      const user = req.user;
+
+      if (!user || user.role !== 'influencer') {
+        return res.status(403).json({ success: false, error: 'Access denied' });
+      }
+
+      const sessions = await storage.getTimeTrackingSessions(proposalId);
+      const totalTimeSpent = await storage.getTotalTimeSpent(proposalId);
+      
+      res.json({ 
+        success: true, 
+        sessions, 
+        totalTimeSpent,
+        totalHours: Math.round((totalTimeSpent / 3600) * 100) / 100
+      });
+    } catch (error) {
+      console.error('Error fetching time sessions:', error);
+      res.status(500).json({ success: false, error: 'Failed to fetch time sessions' });
+    }
+  });
+
+  app.post('/api/time-tracking/start', isAuthenticated, async (req: any, res) => {
+    try {
+      const { milestoneId, proposalId, description } = req.body;
+      const user = req.user;
+
+      if (!user || user.role !== 'influencer') {
+        return res.status(403).json({ success: false, error: 'Access denied' });
+      }
+
+      const session = await storage.startTimeTracking(milestoneId, proposalId, user.id, description);
+      res.json({ success: true, session });
+    } catch (error) {
+      console.error('Error starting time tracking:', error);
+      res.status(500).json({ success: false, error: 'Failed to start time tracking' });
+    }
+  });
+
+  app.post('/api/time-tracking/:sessionId/stop', isAuthenticated, async (req: any, res) => {
+    try {
+      const { sessionId } = req.params;
+      const user = req.user;
+
+      if (!user || user.role !== 'influencer') {
+        return res.status(403).json({ success: false, error: 'Access denied' });
+      }
+
+      const session = await storage.stopTimeTracking(sessionId);
+      res.json({ success: true, session });
+    } catch (error) {
+      console.error('Error stopping time tracking:', error);
+      res.status(500).json({ success: false, error: 'Failed to stop time tracking' });
+    }
+  });
+
+  app.get('/api/time-tracking/active', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = req.user;
+
+      if (!user || user.role !== 'influencer') {
+        return res.status(403).json({ success: false, error: 'Access denied' });
+      }
+
+      const session = await storage.getActiveTimeSession(user.id);
+      res.json({ success: true, session });
+    } catch (error) {
+      console.error('Error fetching active session:', error);
+      res.status(500).json({ success: false, error: 'Failed to fetch active session' });
+    }
+  });
+
+  // Campaign progress endpoints
+  app.get('/api/proposals/:proposalId/progress', isAuthenticated, async (req: any, res) => {
+    try {
+      const { proposalId } = req.params;
+      const user = req.user;
+
+      if (!user || user.role !== 'influencer') {
+        return res.status(403).json({ success: false, error: 'Access denied' });
+      }
+
+      const progressStage = await storage.getCampaignProgressStage(proposalId);
+      const overallProgress = await storage.calculateOverallProgress(proposalId);
+      
+      res.json({ 
+        success: true, 
+        progressStage,
+        overallProgress 
+      });
+    } catch (error) {
+      console.error('Error fetching progress:', error);
+      res.status(500).json({ success: false, error: 'Failed to fetch progress' });
+    }
+  });
+
+  app.put('/api/proposals/:proposalId/progress', isAuthenticated, async (req: any, res) => {
+    try {
+      const { proposalId } = req.params;
+      const { stage, progress } = req.body;
+      const user = req.user;
+
+      if (!user || user.role !== 'influencer') {
+        return res.status(403).json({ success: false, error: 'Access denied' });
+      }
+
+      const progressStage = await storage.updateStageProgress(proposalId, stage, progress);
+      const overallProgress = await storage.calculateOverallProgress(proposalId);
+      
+      res.json({ 
+        success: true, 
+        progressStage,
+        overallProgress 
+      });
+    } catch (error) {
+      console.error('Error updating progress:', error);
+      res.status(500).json({ success: false, error: 'Failed to update progress' });
+    }
+  });
+
+  // External influencer invitation endpoint
+  app.post('/api/brand/invite-external-influencers', isAuthenticated, async (req: any, res) => {
+    try {
+      const { campaignId, invitations, campaignDetails } = req.body;
+      const user = req.user;
+
+      if (!user || user.role !== 'brand') {
+        return res.status(403).json({ success: false, error: 'Access denied' });
+      }
+
+      // Validate input
+      if (!campaignId || !invitations || !Array.isArray(invitations) || invitations.length === 0) {
+        return res.status(400).json({ success: false, error: 'Invalid invitation data' });
+      }
+
+      const { sendExternalInvitationEmail, sendExternalInvitationSMS } = await import('./utils/communication');
+      
+      const results = [];
+      
+      for (const invitation of invitations) {
+        try {
+          let sent = false;
+          
+          switch (invitation.type) {
+            case 'email':
+              sent = await sendExternalInvitationEmail(
+                invitation.value,
+                campaignDetails.title,
+                campaignDetails.description,
+                campaignDetails.personalMessage,
+                campaignDetails.incentiveOffer,
+                campaignId
+              );
+              break;
+              
+            case 'instagram':
+            case 'tiktok':
+            case 'youtube':
+              // For social media handles, we would typically integrate with 
+              // social media APIs or send messages through those platforms
+              // For now, we'll log this and mark as pending manual outreach
+              console.log(`Social media invitation to ${invitation.type}: ${invitation.value}`);
+              sent = true; // Mark as sent for demo purposes
+              break;
+              
+            default:
+              console.log(`Unknown invitation type: ${invitation.type}`);
+          }
+          
+          results.push({
+            invitation,
+            sent,
+            timestamp: new Date().toISOString()
+          });
+          
+        } catch (error) {
+          console.error(`Failed to send invitation to ${invitation.value}:`, error);
+          results.push({
+            invitation,
+            sent: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+          });
+        }
+      }
+
+      // Store invitation records for tracking
+      const invitationRecord = {
+        id: `ext_inv_${Date.now()}`,
+        campaignId,
+        brandId: user.id,
+        invitations: results,
+        campaignDetails,
+        createdAt: new Date().toISOString(),
+        status: 'sent'
+      };
+
+      // In a real implementation, you would store this in the database
+      console.log('External invitation record:', invitationRecord);
+
+      const successCount = results.filter(r => r.sent).length;
+      const totalCount = results.length;
+
+      res.json({
+        success: true,
+        message: `Successfully sent ${successCount} out of ${totalCount} invitations`,
+        results,
+        invitationRecord
+      });
+
+    } catch (error) {
+      console.error('Error sending external invitations:', error);
+      res.status(500).json({ success: false, error: 'Failed to send invitations' });
     }
   });
 

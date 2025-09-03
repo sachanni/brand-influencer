@@ -32,7 +32,8 @@ import {
   PoundSterling,
   Calendar,
   FileText,
-  Activity
+  Activity,
+  Bell
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -86,6 +87,13 @@ export function CampaignInfluencersList({ campaignId }: CampaignInfluencersListP
   // Fetch brand profile to get preferred currency
   const { data: brandProfile } = useQuery({
     queryKey: ["/api/brand/profile"],
+  });
+
+  // Fetch conversation data to get unread counts for each proposal
+  const { data: conversationsData } = useQuery({
+    queryKey: ['/api/conversations/campaign', campaignId],
+    enabled: !!campaignId,
+    select: (data: any) => data || []
   });
 
   const approvedProposals = proposals?.filter(p => p.status === 'approved') || [];
@@ -187,7 +195,17 @@ export function CampaignInfluencersList({ campaignId }: CampaignInfluencersListP
     );
   }
 
+  // Helper to get unread count for a specific influencer
+  const getUnreadCount = (influencerId: string) => {
+    if (!conversationsData) return 0;
+    const conversation = conversationsData.find((conv: any) => 
+      conv.influencerId === influencerId || conv.brandId === influencerId
+    );
+    return conversation?.unreadCount || 0;
+  };
+
   const renderInfluencerCard = (proposal: InfluencerProposal) => {
+    const unreadCount = getUnreadCount(proposal.influencer.id);
     const totalFollowers = proposal.influencer.socialAccounts.reduce((sum, acc) => sum + (acc.followerCount || 0), 0);
     const avgEngagement = proposal.influencer.socialAccounts.reduce((sum, acc) => {
       const rate = parseFloat(acc.engagementRate || '0');
@@ -305,18 +323,24 @@ export function CampaignInfluencersList({ campaignId }: CampaignInfluencersListP
             {proposal.status === 'approved' && (
               <>
                 <Button 
-                  variant="outline" 
                   size="sm" 
-                  className="flex-1"
+                  className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold shadow-md hover:shadow-lg transition-all relative"
                   onClick={() => setSelectedInfluencer(proposal.id)}
                 >
                   <MessageCircle className="w-4 h-4 mr-1" />
                   Chat
+                  {unreadCount > 0 && (
+                    <Badge 
+                      className="absolute -top-2 -right-2 bg-red-500 text-white text-xs min-w-[18px] h-[18px] rounded-full flex items-center justify-center p-0 animate-pulse"
+                      data-testid={`unread-badge-${proposal.id}`}
+                    >
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </Badge>
+                  )}
                 </Button>
                 <Button 
-                  variant="outline" 
                   size="sm" 
-                  className="flex-1"
+                  className="flex-1 bg-white border-2 border-emerald-400 text-emerald-600 hover:bg-emerald-50 font-medium shadow-sm hover:shadow-md transition-all"
                 >
                   <Activity className="w-4 h-4 mr-1" />
                   View Progress
@@ -327,15 +351,14 @@ export function CampaignInfluencersList({ campaignId }: CampaignInfluencersListP
               <>
                 <Button 
                   size="sm" 
-                  className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                  className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold shadow-md hover:shadow-lg transition-all"
                 >
                   <CheckCircle className="w-4 h-4 mr-1" />
                   Approve
                 </Button>
                 <Button 
-                  variant="outline" 
                   size="sm" 
-                  className="flex-1 border-red-300 text-red-600 hover:bg-red-50"
+                  className="flex-1 bg-white border-2 border-red-400 text-red-600 hover:bg-red-50 font-medium shadow-sm hover:shadow-md transition-all"
                 >
                   <XCircle className="w-4 h-4 mr-1" />
                   Reject
@@ -343,8 +366,8 @@ export function CampaignInfluencersList({ campaignId }: CampaignInfluencersListP
               </>
             )}
             <Button 
-              variant="outline" 
               size="sm"
+              className="bg-white border-2 border-slate-400 text-slate-700 hover:bg-slate-50 font-medium shadow-sm hover:shadow-md transition-all"
             >
               <ExternalLink className="w-4 h-4 mr-1" />
               View Profile

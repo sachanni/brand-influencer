@@ -31,7 +31,19 @@ import {
   BarChart3,
   MessageCircle,
   User,
-  Upload
+  Upload,
+  Heart,
+  Share,
+  Camera,
+  Video,
+  Image,
+  AlertTriangle,
+  Shield,
+  Zap,
+  TrendingDown,
+  Send,
+  Paperclip,
+  Download
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -1340,66 +1352,157 @@ export default function BrandDashboard() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
-                {/* Approved Proposals Needing Upfront Payment */}
+                {/* Approved Proposals - Professional Payment Section */}
                 {approvedProposals.length > 0 && (
-                  <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                    <div className="flex items-center gap-2 mb-3">
-                      <CheckCircle className="w-5 h-5 text-blue-600" />
-                      <h4 className="font-semibold text-blue-900">Start Work - Upfront Payment Required</h4>
-                      <Badge className="bg-blue-100 text-blue-800">
-                        {approvedProposals.length} proposal{approvedProposals.length !== 1 ? 's' : ''} approved
-                      </Badge>
+                  <div className="bg-gradient-to-br from-white to-blue-50 rounded-2xl p-6 border border-blue-100 shadow-sm">
+                    {/* Header with Clear Action Indicator */}
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center">
+                          <CheckCircle className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-bold text-gray-900">Ready to Launch</h3>
+                          <p className="text-sm text-gray-600">Proposals approved - Initiate payments to begin work</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                        <Badge className="bg-gradient-to-r from-green-100 to-green-200 text-green-800 border-green-300 px-3 py-1">
+                          {approvedProposals.length} Campaign{approvedProposals.length !== 1 ? 's' : ''} Ready
+                        </Badge>
+                      </div>
                     </div>
-                    <p className="text-sm text-blue-700 mb-4">
-                      These proposals have been approved. Initiate the 50% upfront payment to start the work.
-                    </p>
-                    <div className="space-y-3">
+
+                    {/* Professional Payment Info Panel */}
+                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4 mb-6">
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="w-6 h-6 bg-blue-500 rounded-lg flex items-center justify-center">
+                          <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                        <h4 className="font-semibold text-blue-900">Payment Structure</h4>
+                        <Badge variant="outline" className="text-xs bg-blue-100 text-blue-700 border-blue-300">Industry Standard</Badge>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                          <span className="text-blue-700">Service Fee + 18% GST</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                          <span className="text-blue-700">50% Now, 50% on Completion</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                          <span className="text-blue-700">ITC Eligible for Your Business</span>
+                        </div>
+                      </div>
+                    </div>
+                    {/* Premium Campaign Cards */}
+                    <div className="space-y-4">
                       {approvedProposals.slice(0, 3).map((proposal: any) => (
-                        <div key={proposal.id} className="bg-white rounded-lg p-3 border border-blue-200">
-                          <div className="flex items-start justify-between">
+                        <div key={proposal.id} className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200">
+                          
+                          {/* Campaign Header */}
+                          <div className="flex items-start justify-between mb-4">
                             <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                <h5 className="font-medium text-gray-900">{proposal.campaign?.title}</h5>
-                                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                                  Approved
-                                </Badge>
+                              <div className="flex items-center gap-3 mb-2">
+                                <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
+                                  <span className="text-white font-bold text-sm">{proposal.campaign?.title?.charAt(0)}</span>
+                                </div>
+                                <div>
+                                  <h4 className="font-bold text-gray-900 text-lg">{proposal.campaign?.title}</h4>
+                                  <div className="flex items-center gap-2">
+                                    <Badge className="bg-gradient-to-r from-green-100 to-green-200 text-green-800 border-green-300 text-xs">
+                                      ✓ Approved
+                                    </Badge>
+                                    <span className="text-sm text-gray-500">Campaign Ready</span>
+                                  </div>
+                                </div>
                               </div>
-                              <p className="text-sm text-gray-600 mb-2">
-                                @{proposal.influencer?.username} • {proposal.deliverables} • {proposal.timeline}
-                              </p>
-                              <div className="flex items-center justify-between text-sm">
-                                <span className="text-gray-600">Total: ₹{proposal.proposedCompensation?.toLocaleString()}</span>
-                                <span className="font-medium text-blue-600">
-                                  Upfront: ₹{Math.round((proposal.proposedCompensation || 0) * 0.5).toLocaleString()}
-                                </span>
+                              <div className="flex items-center gap-4 text-sm text-gray-600">
+                                <div className="flex items-center gap-1">
+                                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                  <span>@{proposal.influencer?.username}</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                  <span>{proposal.deliverables}</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                                  <span>{proposal.timeline}</span>
+                                </div>
                               </div>
                             </div>
-                            <div className="flex gap-2">
+                          </div>
+
+                          {/* Professional Payment Breakdown */}
+                          <div className="bg-gradient-to-r from-gray-50 to-blue-50 rounded-xl p-4 mb-4">
+                            <h5 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                              <CreditCard className="w-4 h-4 text-blue-600" />
+                              Investment Breakdown
+                            </h5>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <div className="flex justify-between items-center text-sm">
+                                  <span className="text-gray-600">Service Fee</span>
+                                  <span className="font-medium">₹{proposal.proposedCompensation?.toLocaleString()}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-sm">
+                                  <span className="text-gray-600">GST (18%)</span>
+                                  <span className="font-medium">₹{Math.round((proposal.proposedCompensation || 0) * 0.18).toLocaleString()}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-base font-bold border-t border-gray-200 pt-2">
+                                  <span className="text-gray-900">Total Investment</span>
+                                  <span className="text-blue-600">₹{Math.round((proposal.proposedCompensation || 0) * 1.18).toLocaleString()}</span>
+                                </div>
+                              </div>
+                              
+                              <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-3 border border-green-200">
+                                <div className="text-center">
+                                  <div className="text-xs text-green-600 font-medium mb-1">Pay Now to Start</div>
+                                  <div className="text-2xl font-bold text-green-700">₹{Math.round(((proposal.proposedCompensation || 0) * 1.18 - (proposal.proposedCompensation || 0) * 1.18 * 0.05) * 0.5).toLocaleString()}</div>
+                                  <div className="text-xs text-green-600">50% Upfront Payment</div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Action Buttons */}
+                          <div className="flex items-center justify-between">
+                            <div className="text-xs text-gray-500">
+                              <span className="inline-flex items-center gap-1">
+                                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                Remaining 50% paid after work completion
+                              </span>
+                            </div>
+                            <div className="flex gap-3">
                               <Button
                                 size="sm" 
                                 variant="outline"
-                                className="border-blue-600 text-blue-600 hover:bg-blue-50"
+                                className="border-blue-500 text-blue-600 hover:bg-blue-50 font-medium px-4"
                                 onClick={() => setSelectedCampaignWorkspace(proposal)}
                                 data-testid={`button-workspace-${proposal.id}`}
                               >
-                                <MessageCircle className="w-4 h-4 mr-1" />
-                                Workspace
+                                <MessageCircle className="w-4 h-4 mr-2" />
+                                View Workspace
                               </Button>
                               <Button
                                 size="sm"
-                                className="bg-blue-600 hover:bg-blue-700"
+                                className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold px-6 shadow-md hover:shadow-lg transition-all duration-200"
                                 onClick={() => handleInitiateUpfrontPayment(proposal.id)}
                                 disabled={initiateUpfrontPaymentMutation.isPending}
                                 data-testid={`button-initiate-payment-${proposal.id}`}
                               >
                                 {initiateUpfrontPaymentMutation.isPending ? (
-                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
                                 ) : (
-                                  <>
-                                    <CreditCard className="w-4 h-4 mr-1" />
-                                    Start Work
-                                  </>
+                                  <CreditCard className="w-4 h-4 mr-2" />
                                 )}
+                                Start Campaign
                               </Button>
                             </div>
                           </div>
@@ -1414,53 +1517,90 @@ export default function BrandDashboard() {
                   </div>
                 )}
 
-                {/* Regular Pending Payments */}
+                {/* Pending Payments - Modern Alert Section */}
                 {pendingPayments.length > 0 ? (
-                  <>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-600">Pending Payments:</span>
-                        <span className="font-medium text-yellow-600">{pendingPayments.length}</span>
+                  <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl p-6 border border-amber-200 shadow-sm">
+                    {/* Alert Header */}
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-500 rounded-xl flex items-center justify-center">
+                          <Clock className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-bold text-gray-900">Payment Action Required</h3>
+                          <p className="text-sm text-gray-600">Complete pending payments to maintain workflow</p>
+                        </div>
                       </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-600">Total Amount:</span>
-                        <span className="font-medium">
-                          ₹{pendingPayments.reduce((total: number, payment: any) => 
-                            total + (payment.proposal?.proposedCompensation || 0), 0
-                          ).toLocaleString()}
-                        </span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></div>
+                        <Badge className="bg-gradient-to-r from-amber-100 to-orange-200 text-amber-800 border-amber-300 px-3 py-1">
+                          {pendingPayments.length} Payment{pendingPayments.length !== 1 ? 's' : ''} Due
+                        </Badge>
                       </div>
                     </div>
                     
-                    <div className="space-y-2">
-                      <h4 className="font-medium text-sm">Recent Pending:</h4>
+                    {/* Outstanding Amount Card */}
+                    <div className="bg-gradient-to-r from-white to-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
+                      <div className="text-center">
+                        <div className="text-sm text-amber-600 font-medium mb-1">Total Outstanding</div>
+                        <div className="text-3xl font-bold text-amber-700">
+                          ₹{pendingPayments.reduce((total: number, payment: any) => 
+                            total + (payment.proposal?.proposedCompensation || 0), 0
+                          ).toLocaleString()}
+                        </div>
+                        <div className="text-xs text-amber-600">Across {pendingPayments.length} campaign{pendingPayments.length !== 1 ? 's' : ''}</div>
+                      </div>
+                    </div>
+                    
+                    {/* Pending Items Preview */}
+                    <div className="space-y-3 mb-6">
+                      <h4 className="font-semibold text-gray-900 flex items-center gap-2">
+                        <div className="w-4 h-4 bg-amber-500 rounded-full flex items-center justify-center">
+                          <span className="text-white text-xs font-bold">{pendingPayments.length}</span>
+                        </div>
+                        Recent Due Payments
+                      </h4>
                       {pendingPayments.slice(0, 2).map((payment: any) => (
-                        <div key={`${payment.campaign.id}-${payment.proposal.id}`} className="text-xs text-gray-600 bg-gray-50 p-2 rounded">
-                          <div className="font-medium">{payment.campaign.title}</div>
-                          <div>{payment.influencer?.username} - ₹{payment.proposal?.proposedCompensation?.toLocaleString()}</div>
+                        <div key={`${payment.campaign.id}-${payment.proposal.id}`} className="bg-white rounded-lg p-3 border border-amber-200">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="font-medium text-gray-900">{payment.campaign.title}</div>
+                              <div className="text-sm text-gray-600">@{payment.influencer?.username}</div>
+                            </div>
+                            <div className="text-right">
+                              <div className="font-bold text-amber-700">₹{payment.proposal?.proposedCompensation?.toLocaleString()}</div>
+                              <div className="text-xs text-amber-600">Due: {new Date(payment.dueDate).toLocaleDateString()}</div>
+                            </div>
+                          </div>
                         </div>
                       ))}
                       {pendingPayments.length > 2 && (
-                        <p className="text-xs text-gray-500">+{pendingPayments.length - 2} more...</p>
+                        <div className="text-center">
+                          <span className="inline-flex items-center gap-2 text-sm text-amber-600 font-medium bg-amber-100 px-3 py-1 rounded-full">
+                            <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
+                            +{pendingPayments.length - 2} more payment{pendingPayments.length - 2 !== 1 ? 's' : ''} waiting
+                          </span>
+                        </div>
                       )}
                     </div>
-                  </>
-                ) : (
-                  <div className="text-center py-4">
-                    <CheckCircle className="h-8 w-8 text-green-500 mx-auto mb-2" />
-                    <p className="text-sm text-gray-600">All payments up to date</p>
-                  </div>
-                )}
                 
-                {pendingPayments.length > 0 && (
-                  <div className="pt-4 border-t border-gray-200">
+                    {/* Action Button */}
                     <Button 
-                      className="w-full bg-yellow-600 hover:bg-yellow-700"
+                      className="w-full bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-bold py-3 shadow-md hover:shadow-lg transition-all duration-200"
                       onClick={() => setLocation('/settings-payment')}
                       data-testid="button-process-payments"
                     >
-                      Process {pendingPayments.length} Payment{pendingPayments.length !== 1 ? 's' : ''}
+                      <CreditCard className="w-4 h-4 mr-2" />
+                      Process {pendingPayments.length} Payment{pendingPayments.length !== 1 ? 's' : ''} Now
                     </Button>
+                  </div>
+                ) : (
+                  <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-8 border border-green-200 text-center">
+                    <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <CheckCircle className="w-8 h-8 text-white" />
+                    </div>
+                    <h3 className="text-lg font-bold text-gray-900 mb-2">All Payments Current</h3>
+                    <p className="text-sm text-gray-600">Your payment obligations are up to date</p>
                   </div>
                 )}
               </CardContent>
@@ -1999,13 +2139,18 @@ export default function BrandDashboard() {
           </DialogHeader>
           
           <div className="space-y-6">
-            {/* Quick Stats */}
-            <div className="grid grid-cols-3 gap-4">
-              <div className="bg-green-50 p-4 rounded-lg text-center">
-                <div className="text-2xl font-bold text-green-600">₹{selectedCampaignWorkspace?.proposedCompensation?.toLocaleString() || '0'}</div>
+            {/* Enhanced Stats Dashboard */}
+            <div className="grid grid-cols-4 gap-4">
+              <div className="bg-gradient-to-r from-green-50 to-green-100 p-4 rounded-xl border border-green-200 text-center transform transition-all duration-200 hover:scale-105 hover:shadow-lg hover:from-green-100 hover:to-green-150 cursor-pointer hover:cursor-pointer">
+                <div className="space-y-1">
+                  <div className="text-lg font-bold text-green-600">₹{selectedCampaignWorkspace?.proposedCompensation?.toLocaleString() || '0'}</div>
+                  <div className="text-xs text-green-600">+ GST (18%): ₹{Math.round((selectedCampaignWorkspace?.proposedCompensation || 0) * 0.18).toLocaleString()}</div>
+                  <div className="text-xl font-bold text-green-700 border-t border-green-200 pt-1">₹{Math.round((selectedCampaignWorkspace?.proposedCompensation || 0) * 1.18).toLocaleString()}</div>
+                </div>
                 <div className="text-sm text-green-700">Total Investment</div>
+                <div className="text-xs text-green-600 mt-1">Est. ROI: 3.2x</div>
               </div>
-              <div className="bg-blue-50 p-4 rounded-lg text-center">
+              <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-4 rounded-xl border border-blue-200 text-center transform transition-all duration-200 hover:scale-105 hover:shadow-lg hover:from-blue-100 hover:to-blue-150 cursor-pointer hover:cursor-pointer">
                 <div className="text-2xl font-bold text-blue-600">
                   {selectedCampaignWorkspace?.campaign?.endDate 
                     ? Math.max(0, Math.ceil((new Date(selectedCampaignWorkspace.campaign.endDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
@@ -2013,27 +2158,85 @@ export default function BrandDashboard() {
                   }
                 </div>
                 <div className="text-sm text-blue-700">Days Remaining</div>
+                <div className="text-xs text-blue-600 mt-1">On schedule</div>
               </div>
-              <div className="bg-orange-50 p-4 rounded-lg text-center">
+              <div className="bg-gradient-to-r from-purple-50 to-purple-100 p-4 rounded-xl border border-purple-200 text-center transform transition-all duration-200 hover:scale-105 hover:shadow-lg hover:from-purple-100 hover:to-purple-150 cursor-pointer hover:cursor-pointer">
+                <div className="text-2xl font-bold text-purple-600">87%</div>
+                <div className="text-sm text-purple-700">Confidence Score</div>
+                <div className="text-xs text-purple-600 mt-1">High Success Rate</div>
+              </div>
+              <div className="bg-gradient-to-r from-orange-50 to-orange-100 p-4 rounded-xl border border-orange-200 text-center transform transition-all duration-200 hover:scale-105 hover:shadow-lg hover:from-orange-100 hover:to-orange-150 cursor-pointer hover:cursor-pointer">
                 <div className="text-2xl font-bold text-orange-600">{selectedCampaignWorkspace?.status === 'completion_payment_pending' ? '90%' : '50%'}</div>
                 <div className="text-sm text-orange-700">Campaign Progress</div>
+                <div className="text-xs text-orange-600 mt-1">
+                  {selectedCampaignWorkspace?.status === 'completion_payment_pending' ? 'Ready for review' : 'In progress'}
+                </div>
               </div>
             </div>
 
-            {/* Tabbed Interface */}
+            {/* Performance Metrics Bar */}
+            <div className="bg-gradient-to-r from-gray-50 to-gray-100 p-4 rounded-xl border transition-all duration-200 hover:shadow-lg hover:from-gray-100 hover:to-gray-200">
+              <div className="flex justify-between items-center mb-3">
+                <h3 className="font-semibold text-gray-800">Expected Performance Metrics</h3>
+                <Badge variant="secondary" className="transition-all duration-200 hover:scale-105">Based on influencer history</Badge>
+              </div>
+              <div className="grid grid-cols-4 gap-4 text-center">
+                <div className="p-3 rounded-lg transition-all duration-200 hover:bg-blue-50 hover:shadow-sm cursor-pointer">
+                  <div className="text-lg font-bold text-blue-600">2.4M</div>
+                  <div className="text-xs text-gray-600">Est. Reach</div>
+                </div>
+                <div className="p-3 rounded-lg transition-all duration-200 hover:bg-green-50 hover:shadow-sm cursor-pointer">
+                  <div className="text-lg font-bold text-green-600">8.5%</div>
+                  <div className="text-xs text-gray-600">Avg Engagement</div>
+                </div>
+                <div className="p-3 rounded-lg transition-all duration-200 hover:bg-purple-50 hover:shadow-sm cursor-pointer">
+                  <div className="text-lg font-bold text-purple-600">15K</div>
+                  <div className="text-xs text-gray-600">Est. Clicks</div>
+                </div>
+                <div className="p-3 rounded-lg transition-all duration-200 hover:bg-orange-50 hover:shadow-sm cursor-pointer">
+                  <div className="text-lg font-bold text-orange-600">$2.1</div>
+                  <div className="text-xs text-gray-600">Cost per Click</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Enhanced Tabbed Interface */}
             <Tabs defaultValue="overview" className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="overview" className="flex items-center gap-2">
+              <TabsList className="grid w-full grid-cols-5 bg-gradient-to-r from-gray-100 to-gray-200 p-2 rounded-xl h-auto shadow-sm border">
+                <TabsTrigger 
+                  value="overview" 
+                  className="flex items-center gap-2 px-4 py-3 rounded-lg transition-all duration-200 data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-blue-600 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:scale-105 hover:bg-blue-50 hover:border-blue-300 hover:border-2 hover:text-blue-700 text-gray-600 font-medium text-sm border-2 border-transparent"
+                >
                   <Eye className="w-4 h-4" />
-                  Campaign Overview
+                  Overview
                 </TabsTrigger>
-                <TabsTrigger value="chat" className="flex items-center gap-2">
-                  <MessageCircle className="w-4 h-4" />
-                  Chat & Communication
+                <TabsTrigger 
+                  value="analytics" 
+                  className="flex items-center gap-2 px-4 py-3 rounded-lg transition-all duration-200 data-[state=active]:bg-gradient-to-r data-[state=active]:from-green-500 data-[state=active]:to-green-600 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:scale-105 hover:bg-green-50 hover:border-green-300 hover:border-2 hover:text-green-700 text-gray-600 font-medium text-sm border-2 border-transparent"
+                >
+                  <BarChart3 className="w-4 h-4" />
+                  Analytics
                 </TabsTrigger>
-                <TabsTrigger value="monitoring" className="flex items-center gap-2">
+                <TabsTrigger 
+                  value="content" 
+                  className="flex items-center gap-2 px-4 py-3 rounded-lg transition-all duration-200 data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:scale-105 hover:bg-purple-50 hover:border-purple-300 hover:border-2 hover:text-purple-700 text-gray-600 font-medium text-sm border-2 border-transparent"
+                >
                   <FileText className="w-4 h-4" />
-                  Guidelines & Progress
+                  Content Hub
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="timeline" 
+                  className="flex items-center gap-2 px-4 py-3 rounded-lg transition-all duration-200 data-[state=active]:bg-gradient-to-r data-[state=active]:from-orange-500 data-[state=active]:to-orange-600 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:scale-105 hover:bg-orange-50 hover:border-orange-300 hover:border-2 hover:text-orange-700 text-gray-600 font-medium text-sm border-2 border-transparent"
+                >
+                  <Clock className="w-4 h-4" />
+                  Timeline
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="collaboration" 
+                  className="flex items-center gap-2 px-4 py-3 rounded-lg transition-all duration-200 data-[state=active]:bg-gradient-to-r data-[state=active]:from-pink-500 data-[state=active]:to-pink-600 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:scale-105 hover:bg-pink-50 hover:border-pink-300 hover:border-2 hover:text-pink-700 text-gray-600 font-medium text-sm border-2 border-transparent"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  Communication
                 </TabsTrigger>
               </TabsList>
 
@@ -2075,23 +2278,432 @@ export default function BrandDashboard() {
                 </div>
               </TabsContent>
 
-              {/* Chat & Communication Tab */}
-              <TabsContent value="chat" className="mt-6">
-                <CampaignChat 
-                  campaignId={selectedCampaignWorkspace?.campaign?.id || ''}
-                  proposalId={selectedCampaignWorkspace?.id || ''}
-                  influencerId={selectedCampaignWorkspace?.influencer?.id || ''}
-                  currentUser={{ 
-                    id: (user as any)?.id || '',
-                    role: 'brand', 
-                    firstName: (user as any)?.firstName || '', 
-                    lastName: (user as any)?.lastName || '' 
-                  }}
-                  campaignTitle={selectedCampaignWorkspace?.campaign?.title || ''}
-                />
+              {/* Analytics Tab */}
+              <TabsContent value="analytics" className="space-y-6 mt-6">
+                <div className="grid grid-cols-2 gap-6">
+                  {/* Performance Analytics */}
+                  <div className="bg-white p-6 rounded-xl border shadow-sm transition-all duration-200 hover:shadow-lg hover:scale-102">
+                    <h4 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                      <BarChart3 className="w-5 h-5 text-blue-600" />
+                      Performance Analytics
+                    </h4>
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg transition-all duration-200 hover:bg-blue-100 hover:shadow-sm cursor-pointer">
+                        <div className="flex items-center gap-3">
+                          <Eye className="w-4 h-4 text-blue-600" />
+                          <span className="text-sm font-medium">Estimated Reach</span>
+                        </div>
+                        <span className="font-bold text-blue-600">2.4M</span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg transition-all duration-200 hover:bg-green-100 hover:shadow-sm cursor-pointer">
+                        <div className="flex items-center gap-3">
+                          <Heart className="w-4 h-4 text-green-600" />
+                          <span className="text-sm font-medium">Expected Engagement</span>
+                        </div>
+                        <span className="font-bold text-green-600">8.5%</span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-purple-50 rounded-lg transition-all duration-200 hover:bg-purple-100 hover:shadow-sm cursor-pointer">
+                        <div className="flex items-center gap-3">
+                          <Target className="w-4 h-4 text-purple-600" />
+                          <span className="text-sm font-medium">Click-through Rate</span>
+                        </div>
+                        <span className="font-bold text-purple-600">0.62%</span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-orange-50 rounded-lg transition-all duration-200 hover:bg-orange-100 hover:shadow-sm cursor-pointer">
+                        <div className="flex items-center gap-3">
+                          <CreditCard className="w-4 h-4 text-orange-600" />
+                          <span className="text-sm font-medium">Conversion Rate</span>
+                        </div>
+                        <span className="font-bold text-orange-600">1.8%</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Audience Demographics */}
+                  <div className="bg-white p-6 rounded-xl border shadow-sm transition-all duration-200 hover:shadow-lg hover:scale-102">
+                    <h4 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                      <Users className="w-5 h-5 text-purple-600" />
+                      Audience Demographics
+                    </h4>
+                    <div className="space-y-4">
+                      <div>
+                        <div className="flex justify-between text-sm mb-2">
+                          <span>Age 18-24</span>
+                          <span>32%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div className="bg-blue-600 h-2 rounded-full" style={{width: '32%'}}></div>
+                        </div>
+                      </div>
+                      <div>
+                        <div className="flex justify-between text-sm mb-2">
+                          <span>Age 25-34</span>
+                          <span>45%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div className="bg-green-600 h-2 rounded-full" style={{width: '45%'}}></div>
+                        </div>
+                      </div>
+                      <div>
+                        <div className="flex justify-between text-sm mb-2">
+                          <span>Age 35+</span>
+                          <span>23%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div className="bg-purple-600 h-2 rounded-full" style={{width: '23%'}}></div>
+                        </div>
+                      </div>
+                      <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                        <div className="flex justify-between items-center text-sm">
+                          <span>Gender Split</span>
+                          <div className="flex gap-2">
+                            <Badge variant="secondary">Female 65%</Badge>
+                            <Badge variant="outline">Male 35%</Badge>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ROI Projection */}
+                <div className="bg-gradient-to-r from-green-50 to-blue-50 p-6 rounded-xl border transition-all duration-200 hover:shadow-lg hover:from-green-100 hover:to-blue-100">
+                  <h4 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                    <TrendingUp className="w-5 h-5 text-green-600" />
+                    ROI Projection & Risk Assessment
+                  </h4>
+                  <div className="grid grid-cols-3 gap-6">
+                    <div className="bg-white p-4 rounded-lg transition-all duration-200 hover:shadow-md hover:scale-105 cursor-pointer">
+                      <div className="text-2xl font-bold text-green-600">3.2x</div>
+                      <div className="text-sm text-gray-600">Expected ROI</div>
+                      <div className="text-xs text-green-600 mt-1">Based on similar campaigns</div>
+                    </div>
+                    <div className="bg-white p-4 rounded-lg transition-all duration-200 hover:shadow-md hover:scale-105 cursor-pointer">
+                      <div className="text-2xl font-bold text-blue-600">87%</div>
+                      <div className="text-sm text-gray-600">Success Probability</div>
+                      <div className="text-xs text-blue-600 mt-1">High confidence score</div>
+                    </div>
+                    <div className="bg-white p-4 rounded-lg transition-all duration-200 hover:shadow-md hover:scale-105 cursor-pointer">
+                      <div className="text-2xl font-bold text-orange-600">Low</div>
+                      <div className="text-sm text-gray-600">Risk Level</div>
+                      <div className="text-xs text-orange-600 mt-1">Verified influencer</div>
+                    </div>
+                  </div>
+                </div>
               </TabsContent>
 
-              {/* Guidelines & Progress Tab */}
+              {/* Content Hub Tab */}
+              <TabsContent value="content" className="space-y-6 mt-6">
+                <div className="space-y-6">
+                  {/* Content Requirements */}
+                  <div className="bg-white p-6 rounded-xl border shadow-sm">
+                    <h4 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                      <FileText className="w-5 h-5 text-blue-600" />
+                      Content Requirements & Specifications
+                    </h4>
+                    <div className="grid grid-cols-2 gap-6">
+                      <div>
+                        <h5 className="font-medium mb-3">Deliverables</h5>
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 p-2 bg-blue-50 rounded">
+                            <Video className="w-4 h-4 text-blue-600" />
+                            <span className="text-sm">1 Instagram Reel (15-30s)</span>
+                          </div>
+                          <div className="flex items-center gap-2 p-2 bg-green-50 rounded">
+                            <Image className="w-4 h-4 text-green-600" />
+                            <span className="text-sm">2 Story Posts</span>
+                          </div>
+                          <div className="flex items-center gap-2 p-2 bg-purple-50 rounded">
+                            <Camera className="w-4 h-4 text-purple-600" />
+                            <span className="text-sm">1 Feed Post</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div>
+                        <h5 className="font-medium mb-3">Content Guidelines</h5>
+                        <div className="space-y-2 text-sm text-gray-700">
+                          <div className="flex items-start gap-2">
+                            <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
+                            <span>Include #sponsored hashtag</span>
+                          </div>
+                          <div className="flex items-start gap-2">
+                            <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
+                            <span>Tag @{selectedCampaignWorkspace?.campaign?.title?.toLowerCase().replace(/\s+/g, '')}</span>
+                          </div>
+                          <div className="flex items-start gap-2">
+                            <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
+                            <span>Show product in natural setting</span>
+                          </div>
+                          <div className="flex items-start gap-2">
+                            <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
+                            <span>Include call-to-action in caption</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Content Status & Approval Workflow */}
+                  <div className="bg-white p-6 rounded-xl border shadow-sm">
+                    <h4 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                      <Shield className="w-5 h-5 text-purple-600" />
+                      Content Approval Workflow
+                    </h4>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <div className="w-3 h-3 bg-gray-400 rounded-full"></div>
+                          <span className="font-medium">Draft Creation</span>
+                        </div>
+                        <Badge variant="secondary">Pending</Badge>
+                      </div>
+                      <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <div className="w-3 h-3 bg-blue-600 rounded-full"></div>
+                          <span className="font-medium">Content Submission</span>
+                        </div>
+                        <Badge variant="outline">Awaiting</Badge>
+                      </div>
+                      <div className="flex items-center justify-between p-4 bg-orange-50 rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <div className="w-3 h-3 bg-orange-600 rounded-full"></div>
+                          <span className="font-medium">Brand Review</span>
+                        </div>
+                        <Badge variant="outline">Upcoming</Badge>
+                      </div>
+                      <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <div className="w-3 h-3 bg-green-600 rounded-full"></div>
+                          <span className="font-medium">Content Publishing</span>
+                        </div>
+                        <Badge variant="outline">Final Step</Badge>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+
+              {/* Enhanced Timeline Tab */}
+              <TabsContent value="timeline" className="space-y-6 mt-6">
+                <div className="space-y-6">
+                  {/* Project Timeline */}
+                  <div className="bg-white p-6 rounded-xl border shadow-sm">
+                    <h4 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                      <Clock className="w-5 h-5 text-blue-600" />
+                      Campaign Timeline & Milestones
+                    </h4>
+                    <div className="space-y-4">
+                      <div className="flex items-start gap-4 p-4 bg-green-50 rounded-lg border-l-4 border-green-500">
+                        <CheckCircle className="w-6 h-6 text-green-600 mt-1" />
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <h5 className="font-medium text-green-800">Proposal Approved</h5>
+                            <span className="text-sm text-green-600">✓ Completed</span>
+                          </div>
+                          <p className="text-sm text-green-700 mt-1">Contract signed and campaign parameters finalized</p>
+                          <p className="text-xs text-green-600 mt-2">Completed 2 days ago</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-4 p-4 bg-blue-50 rounded-lg border-l-4 border-blue-500">
+                        <Clock className="w-6 h-6 text-blue-600 mt-1" />
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <h5 className="font-medium text-blue-800">Content Creation Phase</h5>
+                            <span className="text-sm text-blue-600">🔄 In Progress</span>
+                          </div>
+                          <p className="text-sm text-blue-700 mt-1">Influencer is creating content according to brief specifications</p>
+                          <div className="mt-3">
+                            <div className="flex justify-between text-xs text-blue-600 mb-1">
+                              <span>Progress</span>
+                              <span>60%</span>
+                            </div>
+                            <div className="w-full bg-blue-200 rounded-full h-2">
+                              <div className="bg-blue-600 h-2 rounded-full" style={{width: '60%'}}></div>
+                            </div>
+                          </div>
+                          <p className="text-xs text-blue-600 mt-2">Estimated completion: 3 days</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-4 p-4 bg-orange-50 rounded-lg border-l-4 border-orange-300">
+                        <Upload className="w-6 h-6 text-orange-600 mt-1" />
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <h5 className="font-medium text-orange-800">Content Submission</h5>
+                            <span className="text-sm text-orange-600">⏳ Upcoming</span>
+                          </div>
+                          <p className="text-sm text-orange-700 mt-1">Content will be submitted for brand review and approval</p>
+                          <p className="text-xs text-orange-600 mt-2">Expected: 5 days from now</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-4 p-4 bg-purple-50 rounded-lg border-l-4 border-purple-300">
+                        <Shield className="w-6 h-6 text-purple-600 mt-1" />
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <h5 className="font-medium text-purple-800">Brand Review & Approval</h5>
+                            <span className="text-sm text-purple-600">⏳ Pending</span>
+                          </div>
+                          <p className="text-sm text-purple-700 mt-1">48-hour review period for content approval or feedback</p>
+                          <p className="text-xs text-purple-600 mt-2">Scheduled: 7 days from now</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-4 p-4 bg-gray-50 rounded-lg border-l-4 border-gray-300">
+                        <Play className="w-6 h-6 text-gray-600 mt-1" />
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <h5 className="font-medium text-gray-800">Content Publishing</h5>
+                            <span className="text-sm text-gray-600">⏳ Scheduled</span>
+                          </div>
+                          <p className="text-sm text-gray-700 mt-1">Final content goes live across designated platforms</p>
+                          <p className="text-xs text-gray-600 mt-2">Target date: 10 days from now</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Automated Alerts & Notifications */}
+                  <div className="bg-gradient-to-r from-yellow-50 to-orange-50 p-6 rounded-xl border">
+                    <h4 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                      <Zap className="w-5 h-5 text-yellow-600" />
+                      Automated Alerts & Risk Monitoring
+                    </h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="bg-white p-4 rounded-lg">
+                        <h5 className="font-medium text-green-800 mb-2">✅ On Track</h5>
+                        <ul className="text-sm space-y-1 text-gray-700">
+                          <li>• Content creation timeline</li>
+                          <li>• Budget allocation</li>
+                          <li>• Influencer engagement</li>
+                        </ul>
+                      </div>
+                      <div className="bg-white p-4 rounded-lg">
+                        <h5 className="font-medium text-orange-800 mb-2">⚠️ Monitoring</h5>
+                        <ul className="text-sm space-y-1 text-gray-700">
+                          <li>• Delivery deadline adherence</li>
+                          <li>• Content quality standards</li>
+                          <li>• Communication responsiveness</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+
+              {/* Communication Tab */}
+              <TabsContent value="collaboration" className="space-y-6 mt-6">
+                <div className="space-y-6">
+                  {/* Communication Hub */}
+                  <div className="bg-white p-6 rounded-xl border shadow-sm">
+                    <h4 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                      <MessageCircle className="w-5 h-5 text-blue-600" />
+                      Communication Hub
+                    </h4>
+                    <div className="grid grid-cols-2 gap-6">
+                      <div>
+                        <h5 className="font-medium mb-3">Quick Actions</h5>
+                        <div className="space-y-2">
+                          <Button variant="outline" className="w-full justify-start" size="sm">
+                            <Send className="w-4 h-4 mr-2" />
+                            Send Message to Influencer
+                          </Button>
+                          <Button variant="outline" className="w-full justify-start" size="sm">
+                            <Paperclip className="w-4 h-4 mr-2" />
+                            Share Brief Documents
+                          </Button>
+                          <Button variant="outline" className="w-full justify-start" size="sm">
+                            <Calendar className="w-4 h-4 mr-2" />
+                            Schedule Check-in Call
+                          </Button>
+                        </div>
+                      </div>
+                      <div>
+                        <h5 className="font-medium mb-3">Communication Preferences</h5>
+                        <div className="space-y-2 text-sm">
+                          <div className="flex items-center justify-between p-2 bg-blue-50 rounded">
+                            <span>Primary: Platform Messages</span>
+                            <Badge variant="secondary">Active</Badge>
+                          </div>
+                          <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                            <span>Email: Weekly Updates</span>
+                            <Badge variant="outline">Enabled</Badge>
+                          </div>
+                          <div className="flex items-center justify-between p-2 bg-green-50 rounded">
+                            <span>SMS: Urgent Only</span>
+                            <Badge variant="secondary">Available</Badge>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Collaboration Tools */}
+                  <div className="bg-white p-6 rounded-xl border shadow-sm">
+                    <h4 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                      <Users className="w-5 h-5 text-purple-600" />
+                      Collaboration Tools
+                    </h4>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="p-4 bg-blue-50 rounded-lg text-center">
+                        <FileText className="w-8 h-8 text-blue-600 mx-auto mb-2" />
+                        <h5 className="font-medium text-blue-800">Shared Documents</h5>
+                        <p className="text-xs text-blue-600 mt-1">Brief, contracts, guidelines</p>
+                        <Button variant="outline" size="sm" className="mt-2">
+                          <Download className="w-3 h-3 mr-1" />
+                          Access
+                        </Button>
+                      </div>
+                      <div className="p-4 bg-green-50 rounded-lg text-center">
+                        <Camera className="w-8 h-8 text-green-600 mx-auto mb-2" />
+                        <h5 className="font-medium text-green-800">Content Preview</h5>
+                        <p className="text-xs text-green-600 mt-1">Real-time content sharing</p>
+                        <Button variant="outline" size="sm" className="mt-2">
+                          <Eye className="w-3 h-3 mr-1" />
+                          View
+                        </Button>
+                      </div>
+                      <div className="p-4 bg-purple-50 rounded-lg text-center">
+                        <BarChart3 className="w-8 h-8 text-purple-600 mx-auto mb-2" />
+                        <h5 className="font-medium text-purple-800">Performance Data</h5>
+                        <p className="text-xs text-purple-600 mt-1">Live analytics dashboard</p>
+                        <Button variant="outline" size="sm" className="mt-2">
+                          <TrendingUp className="w-3 h-3 mr-1" />
+                          Monitor
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Recent Activity Feed */}
+                  <div className="bg-gradient-to-r from-gray-50 to-blue-50 p-6 rounded-xl border">
+                    <h4 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                      <Clock className="w-5 h-5 text-gray-600" />
+                      Recent Activity
+                    </h4>
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3 p-3 bg-white rounded-lg">
+                        <div className="w-2 h-2 bg-green-600 rounded-full"></div>
+                        <span className="text-sm">Influencer accepted campaign proposal</span>
+                        <span className="text-xs text-gray-500 ml-auto">2 days ago</span>
+                      </div>
+                      <div className="flex items-center gap-3 p-3 bg-white rounded-lg">
+                        <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
+                        <span className="text-sm">Content brief document shared</span>
+                        <span className="text-xs text-gray-500 ml-auto">1 day ago</span>
+                      </div>
+                      <div className="flex items-center gap-3 p-3 bg-white rounded-lg">
+                        <div className="w-2 h-2 bg-orange-600 rounded-full"></div>
+                        <span className="text-sm">Influencer marked content creation as 60% complete</span>
+                        <span className="text-xs text-gray-500 ml-auto">6 hours ago</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+
+              {/* Guidelines & Progress Tab (Legacy) */}
               <TabsContent value="monitoring" className="space-y-6 mt-6">
                 {/* Content Guidelines */}
                 <div className="bg-gray-50 p-4 rounded-lg">

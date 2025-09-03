@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,8 +12,9 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useBrandCurrency } from "@/hooks/useBrandCurrency";
-import { Calendar, CreditCard, MapPin, Target, Users, Clock, Send, Plus, X, ExternalLink, Sparkles, Award, Zap, Building, Tag, Globe, DollarSign, Smartphone, CheckCircle, Package } from "lucide-react";
+import { Calendar, CreditCard, MapPin, Target, Users, Clock, Send, Plus, X, ExternalLink, Sparkles, Award, Zap, Building, Tag, Globe, DollarSign, Smartphone, CheckCircle, Package, MessageCircle } from "lucide-react";
 import { SiInstagram, SiTiktok, SiYoutube } from "react-icons/si";
+import { CampaignBriefModal } from "@/components/CampaignBriefModal";
 
 interface Campaign {
   id: string;
@@ -31,6 +32,7 @@ interface Campaign {
   budgetRange: string;
   requirements: string;
   deliverables: string[];
+  thumbnailUrl?: string; // Campaign thumbnail image
   // Brand information
   brandName?: string;
   brandIndustry?: string;
@@ -97,6 +99,7 @@ const platformIcons = {
 export default function CampaignsPage() {
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
   const [showProposalModal, setShowProposalModal] = useState(false);
+  const [showBriefModal, setShowBriefModal] = useState(false);
   const [proposalForm, setProposalForm] = useState<ProposalFormData>({
     proposalText: "",
     proposedDeliverables: [""],
@@ -114,9 +117,37 @@ export default function CampaignsPage() {
   // Check if user is an influencer (only influencers can apply to campaigns)
   const isInfluencer = user && (user as any)?.role === 'influencer';
 
-  const { data: campaigns = [], isLoading } = useQuery<Campaign[]>({
+  const { data: publicCampaigns = [], isLoading: loadingPublic } = useQuery<Campaign[]>({
     queryKey: ["/api/campaigns"],
   });
+
+  // Fetch campaign invitations for influencers
+  const { data: invitations = [], isLoading: loadingInvitations } = useQuery<any[]>({
+    queryKey: ["/api/influencer/invitations"],
+    enabled: !!isInfluencer, // Only fetch if user is an influencer
+  });
+
+  // Combine public campaigns and invitation campaigns
+  const campaigns = [
+    ...publicCampaigns.map(campaign => ({ ...campaign, isInvitation: false })),
+    ...(Array.isArray(invitations) ? invitations : []).map((invitation: any) => ({
+      id: invitation.campaignId,
+      title: invitation.campaignTitle,
+      description: invitation.campaignDescription,
+      budget: invitation.campaignBudget,
+      deadline: invitation.campaignDeadline,
+      thumbnailUrl: invitation.campaignThumbnailUrl,
+      brandName: invitation.brandName,
+      isInvitation: true,
+      invitationId: invitation.id,
+      invitationStatus: invitation.status,
+      personalMessage: invitation.personalMessage,
+      compensationOffer: invitation.compensationOffer,
+      createdAt: invitation.createdAt,
+    }))
+  ];
+
+  const isLoading = loadingPublic || loadingInvitations;
 
   const submitProposalMutation = useMutation({
     mutationFn: async (data: { campaignId: string; proposal: ProposalFormData }) => {
@@ -146,6 +177,48 @@ export default function CampaignsPage() {
       toast({
         title: "Error",
         description: error.message || "Failed to submit proposal",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Accept invitation mutation
+  const acceptInvitationMutation = useMutation({
+    mutationFn: async (invitationId: string) => {
+      return await apiRequest(`/api/invitations/${invitationId}/status`, "PUT", { status: "accepted" });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Invitation Accepted!",
+        description: "You've successfully accepted the campaign invitation. You can now submit your proposal.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/influencer/invitations"] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to accept invitation",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Decline invitation mutation  
+  const declineInvitationMutation = useMutation({
+    mutationFn: async (invitationId: string) => {
+      return await apiRequest(`/api/invitations/${invitationId}/status`, "PUT", { status: "declined" });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Invitation Declined",
+        description: "You've declined the campaign invitation.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/influencer/invitations"] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to decline invitation",
         variant: "destructive",
       });
     },
@@ -292,16 +365,35 @@ export default function CampaignsPage() {
         </div>
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {campaigns.map((campaign: Campaign) => (
+          {campaigns.map((campaign: any) => (
             <Card key={campaign.id} className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => setSelectedCampaign(campaign)}>
+              {/* Campaign Thumbnail */}
+              {campaign.thumbnailUrl && (
+                <div className="w-full h-48 overflow-hidden rounded-t-lg">
+                  <img
+                    src={campaign.thumbnailUrl}
+                    alt={campaign.title}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              )}
+              
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <CardTitle className="text-lg font-semibold line-clamp-2">
                     {campaign.title}
                   </CardTitle>
-                  <Badge variant="secondary" className="ml-2">
-                    {campaign.campaignType.replace('_', ' ')}
-                  </Badge>
+                  <div className="flex flex-col gap-1 ml-2">
+                    <Badge variant="secondary">
+                      {campaign.campaignType?.replace('_', ' ') || 'Campaign'}
+                    </Badge>
+                    {(campaign as any).isInvitation && (
+                      <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                        <Sparkles className="w-3 h-3 mr-1" />
+                        Invited
+                      </Badge>
+                    )}
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -329,7 +421,7 @@ export default function CampaignsPage() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  {campaign.platforms?.map((platform) => {
+                  {campaign.platforms?.map((platform: any) => {
                     const Icon = platformIcons[platform as keyof typeof platformIcons];
                     return Icon ? (
                       <Icon key={platform} className="h-5 w-5 text-gray-600" />
@@ -342,35 +434,109 @@ export default function CampaignsPage() {
                 </div>
 
                 {isInfluencer ? (
-                  campaign.hasApplied ? (
-                    <div className="w-full space-y-2">
+                  // Handle invitation campaigns
+                  (campaign as any).isInvitation ? (
+                    (campaign as any).invitationStatus === 'pending' ? (
+                      <div className="flex gap-2 w-full">
+                        <Button 
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            acceptInvitationMutation.mutate((campaign as any).invitationId);
+                          }}
+                          disabled={acceptInvitationMutation.isPending}
+                          className="flex-1 bg-green-600 hover:bg-green-700"
+                          data-testid={`accept-invitation-${campaign.id}`}
+                        >
+                          Accept
+                        </Button>
+                        <Button 
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            declineInvitationMutation.mutate((campaign as any).invitationId);
+                          }}
+                          disabled={declineInvitationMutation.isPending}
+                          className="flex-1"
+                          data-testid={`decline-invitation-${campaign.id}`}
+                        >
+                          Decline
+                        </Button>
+                      </div>
+                    ) : (campaign as any).invitationStatus === 'accepted' ? (
+                      campaign.hasApplied ? (
+                        <div className="w-full space-y-2">
+                          <Button 
+                            variant="secondary" 
+                            className="w-full" 
+                            disabled
+                            data-testid={`status-${campaign.id}`}
+                          >
+                            {campaign.applicationStatus === 'pending' && 'Application Submitted'}
+                            {campaign.applicationStatus === 'approved' && 'Approved'}
+                            {campaign.applicationStatus === 'rejected' && 'Not Selected'}
+                            {campaign.applicationStatus === 'paid' && 'Payment Processing'}
+                          </Button>
+                          <div className="text-xs text-gray-500 text-center">
+                            Applied {campaign.appliedAt && new Date(campaign.appliedAt).toLocaleDateString()}
+                          </div>
+                        </div>
+                      ) : (
+                        <Button 
+                          className="w-full" 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedCampaign(campaign);
+                            setShowProposalModal(true);
+                          }}
+                          data-testid={`apply-${campaign.id}`}
+                        >
+                          Submit Proposal
+                        </Button>
+                      )
+                    ) : (
                       <Button 
-                        variant="secondary" 
+                        variant="outline" 
                         className="w-full" 
                         disabled
-                        data-testid={`status-${campaign.id}`}
+                        data-testid={`declined-${campaign.id}`}
                       >
-                        {campaign.applicationStatus === 'pending' && 'Application Submitted'}
-                        {campaign.applicationStatus === 'approved' && 'Approved'}
-                        {campaign.applicationStatus === 'rejected' && 'Not Selected'}
-                        {campaign.applicationStatus === 'paid' && 'Payment Processing'}
+                        Invitation Declined
                       </Button>
-                      <div className="text-xs text-gray-500 text-center">
-                        Applied {campaign.appliedAt && new Date(campaign.appliedAt).toLocaleDateString()}
-                      </div>
-                    </div>
+                    )
                   ) : (
-                    <Button 
-                      className="w-full" 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedCampaign(campaign);
-                        setShowProposalModal(true);
-                      }}
-                      data-testid={`apply-${campaign.id}`}
-                    >
-                      Apply Now
-                    </Button>
+                    // Handle regular public campaigns
+                    campaign.hasApplied ? (
+                      <div className="w-full space-y-2">
+                        <Button 
+                          variant="secondary" 
+                          className="w-full" 
+                          disabled
+                          data-testid={`status-${campaign.id}`}
+                        >
+                          {campaign.applicationStatus === 'pending' && 'Application Submitted'}
+                          {campaign.applicationStatus === 'approved' && 'Approved'}
+                          {campaign.applicationStatus === 'rejected' && 'Not Selected'}
+                          {campaign.applicationStatus === 'paid' && 'Payment Processing'}
+                        </Button>
+                        <div className="text-xs text-gray-500 text-center">
+                          Applied {campaign.appliedAt && new Date(campaign.appliedAt).toLocaleDateString()}
+                        </div>
+                      </div>
+                    ) : (
+                      <Button 
+                        className="w-full" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedCampaign(campaign);
+                          setShowProposalModal(true);
+                        }}
+                        data-testid={`apply-${campaign.id}`}
+                      >
+                        Apply Now
+                      </Button>
+                    )
                   )
                 ) : (
                   <Button 
@@ -379,6 +545,7 @@ export default function CampaignsPage() {
                     onClick={(e) => {
                       e.stopPropagation();
                       setSelectedCampaign(campaign);
+                      setShowBriefModal(true);
                     }}
                   >
                     View Details
@@ -390,236 +557,7 @@ export default function CampaignsPage() {
         </div>
       )}
 
-      {/* Enhanced Campaign Details Modal */}
-      <Dialog open={!!selectedCampaign && !showProposalModal} onOpenChange={() => setSelectedCampaign(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
-          {selectedCampaign && (
-            <>
-              <DialogHeader className="border-b pb-4">
-                <div className="flex justify-between items-start">
-                  <div className="space-y-2">
-                    <DialogTitle className="text-2xl font-bold text-gray-900">
-                      {selectedCampaign.title}
-                    </DialogTitle>
-                    <div className="flex items-center gap-3">
-                      <Badge 
-                        variant="outline" 
-                        className="bg-green-50 text-green-700 border-green-200"
-                      >
-                        ✓ Open for Applications
-                      </Badge>
-                      <span className="text-sm text-gray-500">
-                        Ready to apply!
-                      </span>
-                    </div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setSelectedCampaign(null)}
-                    className="h-8 w-8 p-0"
-                  >
-                    ✕
-                  </Button>
-                </div>
-              </DialogHeader>
-              
-              <div className="overflow-y-auto flex-1 p-6 space-y-8">
-                {/* Campaign Overview */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-gray-900">Campaign Description</h3>
-                  <p className="text-gray-600 leading-relaxed">{selectedCampaign.description}</p>
-                </div>
-
-                {/* Brand Partner Information */}
-                <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                  <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                    <Building className="w-5 h-5 text-blue-600" />
-                    Brand Partner
-                  </h3>
-                  <div className="space-y-2">
-                    <p className="font-medium text-gray-800">{selectedCampaign.brandName || 'Brand Partner'}</p>
-                    {selectedCampaign.brandIndustry && (
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <Tag className="w-4 h-4" />
-                        <span>Industry: {selectedCampaign.brandIndustry}</span>
-                      </div>
-                    )}
-                    {selectedCampaign.brandWebsite && (
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <Globe className="w-4 h-4" />
-                        <a href={selectedCampaign.brandWebsite} target="_blank" rel="noopener noreferrer" 
-                           className="text-blue-600 hover:underline">
-                          {selectedCampaign.brandWebsite}
-                        </a>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Campaign Timeline */}
-                  <div className="bg-blue-50 rounded-lg p-4 space-y-3">
-                    <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                      <Calendar className="w-5 h-5 text-blue-600" />
-                      Campaign Timeline
-                    </h3>
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                        <div>
-                          <p className="text-sm font-medium text-green-700">Apply Now - Flexible Timeline</p>
-                          <p className="text-xs text-gray-600">Applications are being reviewed</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="w-2 h-2 bg-gray-300 rounded-full"></div>
-                        <div>
-                          <p className="text-sm font-medium text-gray-700">Duration To Be Confirmed</p>
-                          <p className="text-xs text-gray-600">
-                            {selectedCampaign.generalStartDate ? 
-                              `Estimated: ${selectedCampaign.generalStartDate} - ${selectedCampaign.generalEndDate}` :
-                              'Timeline will be finalized after selection'
-                            }
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Budget Information */}
-                  <div className="bg-orange-50 rounded-lg p-4 space-y-3">
-                    <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                      <DollarSign className="w-5 h-5 text-orange-600" />
-                      Budget Information
-                    </h3>
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-2xl">💰</span>
-                        <div>
-                          <p className="font-medium text-orange-700">Budget Negotiable</p>
-                          <p className="text-sm text-gray-600">
-                            {selectedCampaign.budgetRange || 'Compensation based on your reach and engagement'}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-xs text-gray-500 bg-white p-2 rounded border">
-                        💡 Your proposal will include your expected compensation
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Platform Requirements */}
-                {selectedCampaign.platforms && selectedCampaign.platforms.length > 0 && (
-                  <div className="space-y-3">
-                    <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                      <Smartphone className="w-5 h-5 text-purple-600" />
-                      Platform Requirements
-                    </h3>
-                    <div className="flex flex-wrap gap-3">
-                      {selectedCampaign.platforms.map((platform) => {
-                        const Icon = platformIcons[platform as keyof typeof platformIcons];
-                        return (
-                          <div key={platform} className="flex items-center gap-2 bg-purple-50 px-3 py-2 rounded-lg">
-                            {Icon && <Icon className="h-5 w-5 text-purple-600" />}
-                            <span className="font-medium text-purple-700 capitalize">{platform}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* Requirements & Deliverables */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-3">
-                    <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                      <CheckCircle className="w-5 h-5 text-green-600" />
-                      Requirements
-                    </h3>
-                    <div className="bg-green-50 p-4 rounded-lg">
-                      <p className="text-gray-700">{selectedCampaign.requirements || 'Detailed requirements will be shared upon selection'}</p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                      <Package className="w-5 h-5 text-indigo-600" />
-                      Deliverables
-                    </h3>
-                    <div className="bg-indigo-50 p-4 rounded-lg">
-                      {selectedCampaign.deliverables && selectedCampaign.deliverables.length > 0 ? (
-                        <ul className="space-y-2">
-                          {selectedCampaign.deliverables.map((deliverable, index) => (
-                            <li key={index} className="flex items-start gap-2 text-gray-700">
-                              <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
-                              <span>{deliverable}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="text-gray-700">Specific deliverables will be discussed during the collaboration process</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Target Audience */}
-                <div className="space-y-3">
-                  <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                    <Users className="w-5 h-5 text-pink-600" />
-                    Target Audience
-                  </h3>
-                  <div className="bg-pink-50 p-4 rounded-lg">
-                    <p className="text-gray-700">{selectedCampaign.targetAudience || 'Target audience details will be provided to selected influencers'}</p>
-                  </div>
-                </div>
-
-                {/* Campaign Status */}
-                <div className="bg-gradient-to-r from-green-50 to-blue-50 p-4 rounded-lg border border-green-200">
-                  <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2 mb-3">
-                    <span className="text-green-600">✅</span>
-                    Campaign Status
-                  </h3>
-                  <p className="text-gray-700 mb-2">
-                    This campaign is <strong className="text-green-600">open for applications</strong> and ready to apply!
-                  </p>
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <Clock className="w-4 h-4" />
-                    <span>Applications are being reviewed on a rolling basis</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="border-t pt-4 flex justify-between items-center">
-                <Button variant="outline" onClick={() => setSelectedCampaign(null)}>
-                  Close
-                </Button>
-                <div className="flex gap-3">
-                  {isInfluencer && !selectedCampaign?.hasApplied && (
-                    <Button 
-                      onClick={() => setShowProposalModal(true)}
-                      className="bg-gradient-to-r from-green-500 to-teal-500 hover:from-green-600 hover:to-teal-600 text-white px-6"
-                    >
-                      Apply Now
-                    </Button>
-                  )}
-                  {isInfluencer && selectedCampaign?.hasApplied && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <CheckCircle className="w-4 h-4 text-green-500" />
-                      <span className="text-gray-600">
-                        Already applied - {selectedCampaign.applicationStatus === 'pending' ? 'Under review' : selectedCampaign.applicationStatus}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+      {/* Enhanced Campaign Details Modal - Available on Dashboard page */}
 
       {/* Enhanced Proposal Submission Modal - Only for influencers */}
       {isInfluencer && (
@@ -936,6 +874,25 @@ export default function CampaignsPage() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Enhanced Campaign Brief Modal */}
+      <CampaignBriefModal
+        campaign={selectedCampaign}
+        isOpen={showBriefModal}
+        onOpenChange={(open) => {
+          setShowBriefModal(open);
+          if (!open) setSelectedCampaign(null);
+        }}
+        onApply={(campaignId) => {
+          setShowBriefModal(false);
+          setShowProposalModal(true);
+        }}
+        onAskQuestion={(campaignId) => {
+          console.log('Ask question about campaign:', campaignId);
+          // TODO: Implement Q&A system
+        }}
+        applicationStatus={selectedCampaign?.applicationStatus || undefined}
+      />
     </div>
   );
 }

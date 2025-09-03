@@ -1,3 +1,4 @@
+import { nanoid } from 'nanoid';
 import {
   users,
   socialAccounts,
@@ -11,7 +12,7 @@ import {
   paymentSettings,
   campaignPayments,
   paymentTransactions,
-  brandProfiles,
+  brands,
   brandCampaigns,
   campaignProposals,
   campaignContent,
@@ -40,9 +41,13 @@ import {
   platformRevenueReports,
   reportTemplates,
   campaignMilestones,
+  proposalMilestones,
+  timeTrackingSessions,
+  campaignProgressStages,
   campaignActivityLog,
   campaignNotifications,
   campaignAutomationRules,
+  campaignInvitations,
   type User,
   type UpsertUser,
   type SocialAccount,
@@ -67,8 +72,8 @@ import {
   type InsertCampaignPayment,
   type PaymentTransaction,
   type InsertPaymentTransaction,
-  type BrandProfile,
-  type InsertBrandProfile,
+  type Brand,
+  type InsertBrand,
   type BrandCampaign,
   type InsertBrandCampaign,
   type CampaignProposal,
@@ -123,6 +128,12 @@ import {
   type InsertReportTemplate,
   type CampaignMilestone,
   type InsertCampaignMilestone,
+  type ProposalMilestone,
+  type InsertProposalMilestone,
+  type TimeTrackingSession,
+  type InsertTimeTrackingSession,
+  type CampaignProgressStage,
+  type InsertCampaignProgressStage,
   type CampaignActivityLog,
   type InsertCampaignActivityLog,
   type CampaignNotification,
@@ -199,9 +210,9 @@ export interface IStorage {
   deleteBrandCollaboration(id: string): Promise<void>;
   
   // Brand profile operations
-  getBrandProfile(userId: string): Promise<BrandProfile | undefined>;
-  createBrandProfile(profile: InsertBrandProfile): Promise<BrandProfile>;
-  updateBrandProfile(userId: string, updates: Partial<BrandProfile>): Promise<BrandProfile>;
+  getBrandProfile(userId: string): Promise<Brand | undefined>;
+  createBrandProfile(profile: InsertBrand): Promise<Brand>;
+  updateBrandProfile(userId: string, updates: Partial<Brand>): Promise<Brand>;
   
   // Brand campaign operations
   getBrandCampaigns(brandId: string): Promise<BrandCampaign[]>;
@@ -215,6 +226,12 @@ export interface IStorage {
   checkAndUpdateCampaignStatus(campaignId: string): Promise<void>;
   updateCampaignPerformanceMetrics(campaignId: string): Promise<void>;
   fetchRealPerformanceData(url: string, platform: string): Promise<any>;
+
+  // Campaign invitations operations
+  createCampaignInvitations(campaignId: string, brandId: string, invitations: { influencerId: string; personalMessage?: string; compensationOffer?: string }[]): Promise<any[]>;
+  getCampaignInvitations(campaignId: string): Promise<any[]>;
+  getInfluencerInvitations(influencerId: string): Promise<any[]>;
+  updateInvitationStatus(invitationId: string, status: string): Promise<any>;
   
   // Campaign lifecycle management operations
   getCampaignMilestones(campaignId: string): Promise<CampaignMilestone[]>;
@@ -222,6 +239,33 @@ export interface IStorage {
   updateCampaignMilestone(id: string, updates: Partial<CampaignMilestone>): Promise<CampaignMilestone>;
   completeCampaignMilestone(milestoneId: string): Promise<CampaignMilestone>;
   initializeCampaignMilestones(campaignId: string): Promise<CampaignMilestone[]>;
+  
+  // Proposal milestone operations
+  getProposalMilestones(proposalId: string): Promise<ProposalMilestone[]>;
+  createProposalMilestone(milestone: InsertProposalMilestone): Promise<ProposalMilestone>;
+  updateProposalMilestone(id: string, updates: Partial<ProposalMilestone>): Promise<ProposalMilestone>;
+  completeProposalMilestone(milestoneId: string): Promise<ProposalMilestone>;
+  initializeProposalMilestones(proposalId: string, campaignId: string, influencerId: string): Promise<ProposalMilestone[]>;
+  updateMilestoneUrgency(proposalId: string): Promise<void>;
+  
+  // Time tracking operations
+  getTimeTrackingSessions(proposalId?: string, milestoneId?: string): Promise<TimeTrackingSession[]>;
+  createTimeTrackingSession(session: InsertTimeTrackingSession): Promise<TimeTrackingSession>;
+  updateTimeTrackingSession(id: string, updates: Partial<TimeTrackingSession>): Promise<TimeTrackingSession>;
+  startTimeTracking(milestoneId: string, proposalId: string, influencerId: string, description?: string): Promise<TimeTrackingSession>;
+  stopTimeTracking(sessionId: string): Promise<TimeTrackingSession>;
+  pauseTimeTracking(sessionId: string): Promise<TimeTrackingSession>;
+  resumeTimeTracking(sessionId: string): Promise<TimeTrackingSession>;
+  getActiveTimeSession(influencerId: string): Promise<TimeTrackingSession | undefined>;
+  getTotalTimeSpent(proposalId: string): Promise<number>; // Returns total seconds
+  
+  // Campaign progress tracking operations
+  getCampaignProgressStage(proposalId: string): Promise<CampaignProgressStage | undefined>;
+  createCampaignProgressStage(stage: InsertCampaignProgressStage): Promise<CampaignProgressStage>;
+  updateCampaignProgressStage(proposalId: string, updates: Partial<CampaignProgressStage>): Promise<CampaignProgressStage>;
+  updateStageProgress(proposalId: string, stage: string, progress: number): Promise<CampaignProgressStage>;
+  advanceToNextStage(proposalId: string, currentStage: string): Promise<CampaignProgressStage>;
+  calculateOverallProgress(proposalId: string): Promise<number>;
   
   logCampaignActivity(activity: InsertCampaignActivityLog): Promise<CampaignActivityLog>;
   getCampaignActivityLog(campaignId: string, limit?: number): Promise<CampaignActivityLog[]>;
@@ -305,6 +349,7 @@ export interface IStorage {
   getConversations(userId: string): Promise<(Conversation & { brand: User; influencer: User; campaign?: BrandCampaign; lastMessage?: Message; unreadCount: number; })[]>;
   getConversation(conversationId: string, userId: string): Promise<(Conversation & { brand: User; influencer: User; campaign?: BrandCampaign; }) | undefined>;
   getConversationByCampaign(campaignId: string, userId: string): Promise<(Conversation & { brand: User; influencer: User; campaign?: BrandCampaign; }) | undefined>;
+  getCampaignQuestions(campaignId: string): Promise<(Conversation & { brand: User; influencer: User; campaign?: BrandCampaign; lastMessage?: Message; unreadCount: number; })[]>;
   createConversation(conversation: InsertConversation): Promise<Conversation>;
   updateConversation(conversationId: string, updates: Partial<Conversation>): Promise<Conversation>;
   
@@ -1212,24 +1257,24 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Brand profile operations
-  async getBrandProfile(userId: string): Promise<BrandProfile | undefined> {
-    const [profile] = await db.select().from(brandProfiles).where(eq(brandProfiles.userId, userId));
+  async getBrandProfile(userId: string): Promise<Brand | undefined> {
+    const [profile] = await db.select().from(brands).where(eq(brands.userId, userId));
     return profile;
   }
 
-  async createBrandProfile(profile: InsertBrandProfile): Promise<BrandProfile> {
+  async createBrandProfile(profile: InsertBrand): Promise<Brand> {
     const [newProfile] = await db
-      .insert(brandProfiles)
+      .insert(brands)
       .values(profile)
       .returning();
     return newProfile;
   }
 
-  async updateBrandProfile(userId: string, updates: Partial<BrandProfile>): Promise<BrandProfile> {
+  async updateBrandProfile(userId: string, updates: Partial<Brand>): Promise<Brand> {
     const [updated] = await db
-      .update(brandProfiles)
+      .update(brands)
       .set({ ...updates, updatedAt: new Date() })
-      .where(eq(brandProfiles.userId, userId))
+      .where(eq(brands.userId, userId))
       .returning();
     return updated;
   }
@@ -1263,6 +1308,103 @@ export class DatabaseStorage implements IStorage {
 
   async deleteBrandCampaign(id: string): Promise<void> {
     await db.delete(brandCampaigns).where(eq(brandCampaigns.id, id));
+  }
+
+  // Campaign invitations operations
+  async createCampaignInvitations(
+    campaignId: string, 
+    brandId: string, 
+    invitations: { influencerId: string; personalMessage?: string; compensationOffer?: string }[]
+  ): Promise<any[]> {
+    const invitationData = invitations.map(inv => ({
+      id: nanoid(),
+      campaignId,
+      brandId,
+      influencerId: inv.influencerId,
+      personalMessage: inv.personalMessage || null,
+      compensationOffer: inv.compensationOffer || null,
+      status: 'pending' as const,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }));
+
+    const [insertedInvitations] = await Promise.all([
+      db.insert(campaignInvitations).values(invitationData).returning(),
+      // Also update the campaign to be invitation-only
+      db.update(brandCampaigns)
+        .set({ 
+          visibilityType: 'invitation_only',
+          updatedAt: new Date() 
+        })
+        .where(eq(brandCampaigns.id, campaignId))
+    ]);
+
+    return insertedInvitations;
+  }
+
+  async getCampaignInvitations(campaignId: string): Promise<any[]> {
+    const invitations = await db
+      .select({
+        id: campaignInvitations.id,
+        campaignId: campaignInvitations.campaignId,
+        brandId: campaignInvitations.brandId,
+        influencerId: campaignInvitations.influencerId,
+        personalMessage: campaignInvitations.personalMessage,
+        compensationOffer: campaignInvitations.compensationOffer,
+        status: campaignInvitations.status,
+        createdAt: campaignInvitations.createdAt,
+        updatedAt: campaignInvitations.updatedAt,
+        influencerName: users.name,
+        influencerEmail: users.email,
+        influencerProfileImage: users.profileImage
+      })
+      .from(campaignInvitations)
+      .leftJoin(users, eq(campaignInvitations.influencerId, users.id))
+      .where(eq(campaignInvitations.campaignId, campaignId))
+      .orderBy(sql`${campaignInvitations.createdAt} DESC`);
+
+    return invitations;
+  }
+
+  async getInfluencerInvitations(influencerId: string): Promise<any[]> {
+    const invitations = await db
+      .select({
+        id: campaignInvitations.id,
+        campaignId: campaignInvitations.campaignId,
+        brandId: campaignInvitations.brandId,
+        influencerId: campaignInvitations.influencerId,
+        personalMessage: campaignInvitations.personalMessage,
+        compensationOffer: campaignInvitations.compensationOffer,
+        status: campaignInvitations.status,
+        createdAt: campaignInvitations.createdAt,
+        updatedAt: campaignInvitations.updatedAt,
+        campaignTitle: brandCampaigns.title,
+        campaignDescription: brandCampaigns.description,
+        campaignBudget: brandCampaigns.budget,
+        campaignDeadline: brandCampaigns.deadline,
+        campaignThumbnailUrl: brandCampaigns.thumbnailUrl,
+        brandName: brands.companyName
+      })
+      .from(campaignInvitations)
+      .leftJoin(brandCampaigns, eq(campaignInvitations.campaignId, brandCampaigns.id))
+      .leftJoin(brands, eq(campaignInvitations.brandId, brands.userId))
+      .where(eq(campaignInvitations.influencerId, influencerId))
+      .orderBy(sql`${campaignInvitations.createdAt} DESC`);
+
+    return invitations;
+  }
+
+  async updateInvitationStatus(invitationId: string, status: string): Promise<any> {
+    const [updated] = await db
+      .update(campaignInvitations)
+      .set({ 
+        status, 
+        updatedAt: new Date() 
+      })
+      .where(eq(campaignInvitations.id, invitationId))
+      .returning();
+
+    return updated;
   }
 
   async getActiveCampaigns(): Promise<BrandCampaign[]> {
@@ -2288,6 +2430,170 @@ export class DatabaseStorage implements IStorage {
     if (!conversation) return undefined;
 
     return this.getConversation(conversation.id, userId);
+  }
+
+  async getConversationByCampaignAndParticipants(campaignId: string, userId: string, otherParticipantId?: string): Promise<(Conversation & { brand: User; influencer: User; campaign?: BrandCampaign; }) | undefined> {
+    // If no specific participant ID is provided, fall back to the original method
+    if (!otherParticipantId) {
+      return this.getConversationByCampaign(campaignId, userId);
+    }
+
+    // Find conversation for this specific campaign and participant pair
+    const [conversation] = await db
+      .select()
+      .from(conversations)
+      .where(and(
+        eq(conversations.campaignId, campaignId),
+        or(
+          // User is brand, other participant is influencer
+          and(eq(conversations.brandId, userId), eq(conversations.influencerId, otherParticipantId)),
+          // User is influencer, other participant is brand
+          and(eq(conversations.influencerId, userId), eq(conversations.brandId, otherParticipantId))
+        )
+      ))
+      .orderBy(desc(conversations.lastMessageAt), desc(conversations.createdAt))
+      .limit(1);
+
+    if (!conversation) return undefined;
+
+    return this.getConversation(conversation.id, userId);
+  }
+
+  async getCampaignQuestionsByInfluencer(campaignId: string, influencerId: string): Promise<(Conversation & { brand: User; influencer: User; campaign?: BrandCampaign; lastMessage?: Message; unreadCount: number; })[]> {
+    // Get conversations for this campaign where the user is the influencer
+    const results = await db
+      .select()
+      .from(conversations)
+      .where(
+        and(
+          eq(conversations.campaignId, campaignId),
+          eq(conversations.influencerId, influencerId)
+        )
+      )
+      .orderBy(desc(conversations.lastMessageAt), desc(conversations.createdAt));
+
+    const enrichedConversations = await Promise.all(
+      results.map(async (conversation) => {
+        // Get brand user
+        const [brand] = await db
+          .select()
+          .from(users)
+          .where(eq(users.id, conversation.brandId));
+
+        // Get influencer user  
+        const [influencer] = await db
+          .select()
+          .from(users)
+          .where(eq(users.id, conversation.influencerId));
+
+        // Get campaign
+        let campaign = null;
+        if (conversation.campaignId) {
+          const [campaignResult] = await db
+            .select()
+            .from(brandCampaigns)
+            .where(eq(brandCampaigns.id, conversation.campaignId));
+          campaign = campaignResult || null;
+        }
+
+        // Get last message
+        const [lastMessage] = await db
+          .select()
+          .from(messages)
+          .where(eq(messages.conversationId, conversation.id))
+          .orderBy(desc(messages.createdAt))
+          .limit(1);
+
+        // Get unread count for influencer (they receive replies from brands)
+        const [unreadResult] = await db
+          .select({ count: sql<number>`count(*)`.as('count') })
+          .from(messages)
+          .where(
+            and(
+              eq(messages.conversationId, conversation.id),
+              eq(messages.receiverId, conversation.influencerId),
+              eq(messages.isRead, false)
+            )
+          );
+
+        return {
+          ...conversation,
+          brand: brand!,
+          influencer: influencer!,
+          campaign: campaign || undefined,
+          lastMessage: lastMessage || undefined,
+          unreadCount: unreadResult?.count || 0,
+        };
+      })
+    );
+
+    return enrichedConversations;
+  }
+
+  async getCampaignQuestions(campaignId: string): Promise<(Conversation & { brand: User; influencer: User; campaign?: BrandCampaign; lastMessage?: Message; unreadCount: number; })[]> {
+    // Get all conversations for this campaign (pre-approval Q&A)
+    const results = await db
+      .select()
+      .from(conversations)
+      .where(eq(conversations.campaignId, campaignId))
+      .orderBy(desc(conversations.lastMessageAt), desc(conversations.createdAt));
+
+    const enrichedConversations = await Promise.all(
+      results.map(async (conversation) => {
+        // Get brand user
+        const [brand] = await db
+          .select()
+          .from(users)
+          .where(eq(users.id, conversation.brandId));
+
+        // Get influencer user  
+        const [influencer] = await db
+          .select()
+          .from(users)
+          .where(eq(users.id, conversation.influencerId));
+
+        // Get campaign
+        let campaign = null;
+        if (conversation.campaignId) {
+          const [campaignResult] = await db
+            .select()
+            .from(brandCampaigns)
+            .where(eq(brandCampaigns.id, conversation.campaignId));
+          campaign = campaignResult || null;
+        }
+
+        // Get last message
+        const [lastMessage] = await db
+          .select()
+          .from(messages)
+          .where(eq(messages.conversationId, conversation.id))
+          .orderBy(desc(messages.createdAt))
+          .limit(1);
+
+        // Get unread count for brand (they receive questions from influencers)
+        const [unreadResult] = await db
+          .select({ count: sql<number>`count(*)`.as('count') })
+          .from(messages)
+          .where(
+            and(
+              eq(messages.conversationId, conversation.id),
+              eq(messages.receiverId, conversation.brandId),
+              eq(messages.isRead, false)
+            )
+          );
+
+        return {
+          ...conversation,
+          brand: brand!,
+          influencer: influencer!,
+          campaign: campaign || undefined,
+          lastMessage: lastMessage || undefined,
+          unreadCount: unreadResult?.count || 0,
+        };
+      })
+    );
+
+    return enrichedConversations;
   }
 
   async createConversation(conversation: InsertConversation): Promise<Conversation> {
@@ -3343,7 +3649,7 @@ export class DatabaseStorage implements IStorage {
     
     // Calculate tax region and tax information
     const taxRegion = InvoiceService.determineTaxRegion(brand);
-    const proposedAmount = parseFloat(proposal.proposedBudget || '0');
+    const proposedAmount = parseFloat(proposal.proposedCompensation || '0');
     
     // Calculate tax
     const taxCalculation = InvoiceService.calculateTax(proposedAmount, taxRegion);
@@ -3375,7 +3681,7 @@ export class DatabaseStorage implements IStorage {
       paymentTerms,
       paymentDueDate: dueDate,
       issueDate,
-      notes: `Invoice for campaign collaboration: ${campaign.title}`,
+      notes: `Invoice for campaign collaboration: ${campaign.title}. Brand pays full amount. Platform commission (5%) deducted during payment processing.`,
       termsAndConditions: 'Payment due within 30 days. Late payments may incur fees.',
       generatedAutomatically: true
     };
@@ -4031,6 +4337,366 @@ export class DatabaseStorage implements IStorage {
     });
 
     return updated;
+  }
+
+  // Proposal milestone operations
+  async getProposalMilestones(proposalId: string): Promise<ProposalMilestone[]> {
+    return await db
+      .select()
+      .from(proposalMilestones)
+      .where(eq(proposalMilestones.proposalId, proposalId))
+      .orderBy(proposalMilestones.order);
+  }
+
+  async createProposalMilestone(milestone: InsertProposalMilestone): Promise<ProposalMilestone> {
+    const [created] = await db
+      .insert(proposalMilestones)
+      .values(milestone)
+      .returning();
+
+    if (!created) {
+      throw new Error('Failed to create proposal milestone');
+    }
+
+    return created;
+  }
+
+  async updateProposalMilestone(id: string, updates: Partial<ProposalMilestone>): Promise<ProposalMilestone> {
+    const [updated] = await db
+      .update(proposalMilestones)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(proposalMilestones.id, id))
+      .returning();
+
+    if (!updated) {
+      throw new Error('Proposal milestone not found');
+    }
+
+    return updated;
+  }
+
+  async completeProposalMilestone(milestoneId: string): Promise<ProposalMilestone> {
+    const [milestone] = await db
+      .update(proposalMilestones)
+      .set({
+        status: 'completed',
+        completedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(proposalMilestones.id, milestoneId))
+      .returning();
+      
+    if (!milestone) {
+      throw new Error('Proposal milestone not found');
+    }
+
+    return milestone;
+  }
+
+  async initializeProposalMilestones(proposalId: string, campaignId: string, influencerId: string): Promise<ProposalMilestone[]> {
+    const defaultMilestones = [
+      { title: 'Script Writing', type: 'script_writing', order: 1, estimatedHours: '2.00' },
+      { title: 'Content Creation', type: 'filming', order: 2, estimatedHours: '4.00' },
+      { title: 'Editing', type: 'editing', order: 3, estimatedHours: '3.00' },
+      { title: 'Review & Revisions', type: 'review', order: 4, estimatedHours: '1.00' },
+      { title: 'Publishing', type: 'posting', order: 5, estimatedHours: '0.50' },
+    ];
+
+    const milestones: InsertProposalMilestone[] = defaultMilestones.map(milestone => ({
+      proposalId,
+      campaignId,
+      influencerId,
+      ...milestone,
+    }));
+
+    const created = await db
+      .insert(proposalMilestones)
+      .values(milestones)
+      .returning();
+
+    return created;
+  }
+
+  async updateMilestoneUrgency(proposalId: string): Promise<void> {
+    const now = new Date();
+    const urgentThreshold = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000); // 2 days from now
+
+    await db
+      .update(proposalMilestones)
+      .set({ 
+        isUrgent: true, 
+        updatedAt: new Date() 
+      })
+      .where(
+        and(
+          eq(proposalMilestones.proposalId, proposalId),
+          eq(proposalMilestones.status, 'pending'),
+          sql`${proposalMilestones.dueDate} <= ${urgentThreshold}`
+        )
+      );
+  }
+
+  // Time tracking operations
+  async getTimeTrackingSessions(proposalId?: string, milestoneId?: string): Promise<TimeTrackingSession[]> {
+    const conditions = [];
+    if (proposalId) conditions.push(eq(timeTrackingSessions.proposalId, proposalId));
+    if (milestoneId) conditions.push(eq(timeTrackingSessions.milestoneId, milestoneId));
+    
+    return await db
+      .select()
+      .from(timeTrackingSessions)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(timeTrackingSessions.createdAt));
+  }
+
+  async createTimeTrackingSession(session: InsertTimeTrackingSession): Promise<TimeTrackingSession> {
+    const [created] = await db
+      .insert(timeTrackingSessions)
+      .values(session)
+      .returning();
+
+    if (!created) {
+      throw new Error('Failed to create time tracking session');
+    }
+
+    return created;
+  }
+
+  async updateTimeTrackingSession(id: string, updates: Partial<TimeTrackingSession>): Promise<TimeTrackingSession> {
+    const [updated] = await db
+      .update(timeTrackingSessions)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(timeTrackingSessions.id, id))
+      .returning();
+
+    if (!updated) {
+      throw new Error('Time tracking session not found');
+    }
+
+    return updated;
+  }
+
+  async startTimeTracking(milestoneId: string, proposalId: string, influencerId: string, description?: string): Promise<TimeTrackingSession> {
+    // Stop any active session first
+    const activeSessions = await db
+      .select()
+      .from(timeTrackingSessions)
+      .where(
+        and(
+          eq(timeTrackingSessions.influencerId, influencerId),
+          eq(timeTrackingSessions.isActive, true)
+        )
+      );
+
+    for (const activeSession of activeSessions) {
+      await this.stopTimeTracking(activeSession.id);
+    }
+
+    const [session] = await db
+      .insert(timeTrackingSessions)
+      .values({
+        milestoneId,
+        proposalId,
+        influencerId,
+        startTime: new Date(),
+        description,
+        isActive: true,
+      })
+      .returning();
+
+    if (!session) {
+      throw new Error('Failed to start time tracking session');
+    }
+
+    return session;
+  }
+
+  async stopTimeTracking(sessionId: string): Promise<TimeTrackingSession> {
+    const now = new Date();
+    
+    // Get the session first to calculate duration
+    const [session] = await db
+      .select()
+      .from(timeTrackingSessions)
+      .where(eq(timeTrackingSessions.id, sessionId));
+
+    if (!session) {
+      throw new Error('Time tracking session not found');
+    }
+
+    const duration = Math.floor((now.getTime() - session.startTime.getTime()) / 1000);
+
+    const [updated] = await db
+      .update(timeTrackingSessions)
+      .set({ 
+        endTime: now,
+        duration,
+        isActive: false,
+        updatedAt: now
+      })
+      .where(eq(timeTrackingSessions.id, sessionId))
+      .returning();
+
+    if (!updated) {
+      throw new Error('Failed to stop time tracking session');
+    }
+
+    return updated;
+  }
+
+  async pauseTimeTracking(sessionId: string): Promise<TimeTrackingSession> {
+    const [updated] = await db
+      .update(timeTrackingSessions)
+      .set({ 
+        pausedAt: new Date(),
+        updatedAt: new Date()
+      })
+      .where(eq(timeTrackingSessions.id, sessionId))
+      .returning();
+
+    if (!updated) {
+      throw new Error('Time tracking session not found');
+    }
+
+    return updated;
+  }
+
+  async resumeTimeTracking(sessionId: string): Promise<TimeTrackingSession> {
+    const [updated] = await db
+      .update(timeTrackingSessions)
+      .set({ 
+        resumedAt: new Date(),
+        pausedAt: null,
+        updatedAt: new Date()
+      })
+      .where(eq(timeTrackingSessions.id, sessionId))
+      .returning();
+
+    if (!updated) {
+      throw new Error('Time tracking session not found');
+    }
+
+    return updated;
+  }
+
+  async getActiveTimeSession(influencerId: string): Promise<TimeTrackingSession | undefined> {
+    const [session] = await db
+      .select()
+      .from(timeTrackingSessions)
+      .where(
+        and(
+          eq(timeTrackingSessions.influencerId, influencerId),
+          eq(timeTrackingSessions.isActive, true)
+        )
+      );
+
+    return session;
+  }
+
+  async getTotalTimeSpent(proposalId: string): Promise<number> {
+    const sessions = await db
+      .select()
+      .from(timeTrackingSessions)
+      .where(eq(timeTrackingSessions.proposalId, proposalId));
+
+    return sessions.reduce((total, session) => {
+      return total + (session.duration || 0);
+    }, 0);
+  }
+
+  // Campaign progress tracking operations
+  async getCampaignProgressStage(proposalId: string): Promise<CampaignProgressStage | undefined> {
+    const [stage] = await db
+      .select()
+      .from(campaignProgressStages)
+      .where(eq(campaignProgressStages.proposalId, proposalId));
+
+    return stage;
+  }
+
+  async createCampaignProgressStage(stage: InsertCampaignProgressStage): Promise<CampaignProgressStage> {
+    const [created] = await db
+      .insert(campaignProgressStages)
+      .values(stage)
+      .returning();
+
+    if (!created) {
+      throw new Error('Failed to create campaign progress stage');
+    }
+
+    return created;
+  }
+
+  async updateCampaignProgressStage(proposalId: string, updates: Partial<CampaignProgressStage>): Promise<CampaignProgressStage> {
+    const [updated] = await db
+      .update(campaignProgressStages)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(campaignProgressStages.proposalId, proposalId))
+      .returning();
+
+    if (!updated) {
+      throw new Error('Campaign progress stage not found');
+    }
+
+    return updated;
+  }
+
+  async updateStageProgress(proposalId: string, stage: string, progress: number): Promise<CampaignProgressStage> {
+    const progressField = `${stage}Progress` as keyof CampaignProgressStage;
+    
+    const [updated] = await db
+      .update(campaignProgressStages)
+      .set(sql`${sql.identifier(progressField)} = ${progress}, updated_at = ${new Date()}`)
+      .where(eq(campaignProgressStages.proposalId, proposalId))
+      .returning();
+
+    if (!updated) {
+      throw new Error('Campaign progress stage not found');
+    }
+
+    return updated;
+  }
+
+  async advanceToNextStage(proposalId: string, currentStage: string): Promise<CampaignProgressStage> {
+    const stageOrder = ['content_creation', 'submission', 'review', 'approval', 'payment', 'completed'];
+    const currentIndex = stageOrder.indexOf(currentStage);
+    const nextStage = currentIndex < stageOrder.length - 1 ? stageOrder[currentIndex + 1] : 'completed';
+
+    const [updated] = await db
+      .update(campaignProgressStages)
+      .set({ 
+        currentStage: nextStage,
+        updatedAt: new Date()
+      })
+      .where(eq(campaignProgressStages.proposalId, proposalId))
+      .returning();
+
+    if (!updated) {
+      throw new Error('Campaign progress stage not found');
+    }
+
+    return updated;
+  }
+
+  async calculateOverallProgress(proposalId: string): Promise<number> {
+    const stage = await this.getCampaignProgressStage(proposalId);
+    
+    if (!stage) {
+      return 0;
+    }
+
+    const totalProgress = (
+      (stage.contentCreationProgress || 0) +
+      (stage.submissionProgress || 0) +
+      (stage.reviewProgress || 0) +
+      (stage.approvalProgress || 0) +
+      (stage.paymentProgress || 0)
+    ) / 5;
+
+    // Update the overall progress
+    await this.updateCampaignProgressStage(proposalId, { overallProgress: Math.round(totalProgress) });
+
+    return Math.round(totalProgress);
   }
 }
 

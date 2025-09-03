@@ -13,8 +13,8 @@ export class PaymentService {
   // Helper method to get brand's currency preference
   private async getBrandCurrency(brandId: string): Promise<string> {
     try {
-      const brandProfile = await storage.getBrandProfile(brandId);
-      return brandProfile?.preferredCurrency || 'INR';
+      const brand = await storage.getBrandProfile(brandId);
+      return brand?.preferredCurrency || 'INR';
     } catch (error) {
       console.error('Error fetching brand currency preference:', error);
       return 'INR'; // fallback to INR
@@ -155,15 +155,33 @@ export class PaymentService {
       // Check if upfront payment already exists
       const existingPayments = await storage.getCampaignPayments(proposal.campaignId, proposal.influencerId);
       const upfrontPayment = existingPayments.find(p => p.paymentType === 'upfront');
+      
+      // Calculate expected amount to verify if existing payment is correct
+      const baseAmount = parseFloat(String(proposal.proposedCompensation || 0).replace(/[$,]/g, ''));
+      const gstAmount = baseAmount * PLATFORM_CONFIG.TAX_RATE; // 18% GST
+      const totalAmountWithGST = baseAmount + gstAmount; // Total invoice amount including GST
+      const platformCommission = totalAmountWithGST * PLATFORM_CONFIG.COMMISSION_RATE;
+      const influencerAmount = totalAmountWithGST - platformCommission;
+      const expectedUpfrontAmount = influencerAmount * 0.5;
+      
+      // If payment exists but amount is incorrect (old calculation), update it
       if (upfrontPayment) {
+        const existingAmount = parseFloat(upfrontPayment.amount);
+        if (Math.abs(existingAmount - expectedUpfrontAmount) > 1) { // Allow for minor rounding differences
+          // Update existing payment with correct calculation
+          await storage.updateCampaignPayment(upfrontPayment.id, {
+            amount: String(expectedUpfrontAmount),
+            notes: `Upfront payment (50%) for campaign: ${campaign.title}. Base: ${baseAmount} ₹, GST: ${gstAmount.toFixed(2)} ₹, Total: ${totalAmountWithGST} ₹. Platform commission: ${(platformCommission * 0.5).toFixed(2)} ₹ deducted. [Updated calculation]`,
+          });
+          
+          // Return updated payment
+          return await storage.getCampaignPayment(upfrontPayment.id);
+        }
         return upfrontPayment;
       }
 
-      // Calculate 50% upfront payment with platform commission
-      const totalAmount = parseFloat(String(proposal.proposedCompensation || 0).replace(/[$,]/g, ''));
-      const platformCommission = totalAmount * PLATFORM_CONFIG.COMMISSION_RATE;
-      const influencerAmount = totalAmount - platformCommission;
-      const upfrontAmount = influencerAmount * 0.5;
+      // Use the already calculated values
+      const upfrontAmount = expectedUpfrontAmount;
 
       const dueDate = new Date();
       dueDate.setDate(dueDate.getDate() + 3); // 3 days to pay upfront
@@ -183,7 +201,7 @@ export class PaymentService {
         currency: brandCurrency,
         status: 'pending',
         dueDate,
-        notes: `Upfront payment (50%) for campaign: ${campaign.title}. Platform commission: ${(platformCommission * 0.5).toFixed(2)} ${currencySymbol} deducted.`,
+        notes: `Upfront payment (50%) for campaign: ${campaign.title}. Base: ${baseAmount} ${currencySymbol}, GST: ${gstAmount.toFixed(2)} ${currencySymbol}, Total: ${totalAmountWithGST} ${currencySymbol}. Platform commission: ${(platformCommission * 0.5).toFixed(2)} ${currencySymbol} deducted.`,
       });
 
       // Create platform commission record for upfront payment
@@ -193,7 +211,7 @@ export class PaymentService {
         influencerId: proposal.influencerId,
         brandId: campaign.brandId,
         paymentType: 'upfront',
-        grossAmount: totalAmount * 0.5,
+        grossAmount: totalAmountWithGST * 0.5,
         commissionAmount: platformCommission * 0.5,
         netAmount: upfrontAmount,
         description: `Platform commission (5%) - Upfront payment for campaign: ${campaign.title}`
@@ -235,10 +253,12 @@ export class PaymentService {
         return completionPayment;
       }
 
-      // Calculate 50% completion payment with platform commission
-      const totalAmount = parseFloat(String(proposal.proposedCompensation || 0).replace(/[$,]/g, ''));
-      const platformCommission = totalAmount * PLATFORM_CONFIG.COMMISSION_RATE;
-      const influencerAmount = totalAmount - platformCommission;
+      // Calculate 50% completion payment with platform commission (including GST)
+      const baseAmount = parseFloat(String(proposal.proposedCompensation || 0).replace(/[$,]/g, ''));
+      const gstAmount = baseAmount * PLATFORM_CONFIG.TAX_RATE; // 18% GST
+      const totalAmountWithGST = baseAmount + gstAmount; // Total invoice amount including GST
+      const platformCommission = totalAmountWithGST * PLATFORM_CONFIG.COMMISSION_RATE;
+      const influencerAmount = totalAmountWithGST - platformCommission;
       const completionAmount = influencerAmount * 0.5;
 
       const dueDate = new Date();
@@ -259,7 +279,7 @@ export class PaymentService {
         currency: brandCurrency,
         status: 'pending',
         dueDate,
-        notes: `Completion payment (50%) for campaign: ${campaign.title}. Platform commission: ${(platformCommission * 0.5).toFixed(2)} ${currencySymbol} deducted.`,
+        notes: `Completion payment (50%) for campaign: ${campaign.title}. Base: ${baseAmount} ${currencySymbol}, GST: ${gstAmount.toFixed(2)} ${currencySymbol}, Total: ${totalAmountWithGST} ${currencySymbol}. Platform commission: ${(platformCommission * 0.5).toFixed(2)} ${currencySymbol} deducted.`,
       });
 
       // Create platform commission record for completion payment
@@ -269,7 +289,7 @@ export class PaymentService {
         influencerId: proposal.influencerId,
         brandId: campaign.brandId,
         paymentType: 'completion',
-        grossAmount: totalAmount * 0.5,
+        grossAmount: totalAmountWithGST * 0.5,
         commissionAmount: platformCommission * 0.5,
         netAmount: completionAmount,
         description: `Platform commission (5%) - Completion payment for campaign: ${campaign.title}`

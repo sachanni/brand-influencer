@@ -9,6 +9,7 @@ import {
   integer,
   boolean,
   numeric,
+  decimal,
   bigint,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
@@ -46,7 +47,7 @@ export const users = pgTable("users", {
 });
 
 // Brand profiles table for additional brand-specific information
-export const brandProfiles = pgTable("brand_profiles", {
+export const brands = pgTable("brands", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   companyName: varchar("company_name").notNull(),
@@ -77,6 +78,10 @@ export const brandCampaigns = pgTable("brand_campaigns", {
   campaignType: varchar("campaign_type").notNull(), // 'product_placement', 'sponsored_posts', 'brand_ambassador'
   status: varchar("status").notNull().default('draft'), // 'draft', 'active', 'paused', 'completed', 'cancelled', 'archived'
   
+  // Campaign Visual Assets
+  thumbnailUrl: varchar("thumbnail_url"), // Primary campaign thumbnail/hero image
+  additionalAssets: text("additional_assets").array(), // Supporting images, brand assets, product photos
+  
   // Public Information (Visible to all influencers during bidding)
   generalStartDate: varchar("general_start_date"), // e.g., "Early September" 
   generalEndDate: varchar("general_end_date"), // e.g., "Late September"
@@ -93,6 +98,13 @@ export const brandCampaigns = pgTable("brand_campaigns", {
   paymentTermsGeneral: varchar("payment_terms_general"), // 'competitive_rate', 'upon_completion'
   campaignGoal: varchar("campaign_goal"), // 'brand_awareness', 'sales', 'engagement'
   
+  // Campaign Visibility and Assignment
+  visibilityType: varchar("visibility_type").default('public'), // 'public', 'invitation_only', 'hybrid'
+  
+  // Campaign Priority and Urgency (Public Information)
+  priority: varchar("priority").default('medium'), // 'low', 'medium', 'high', 'urgent'
+  urgencyReason: text("urgency_reason"), // Optional explanation for urgent campaigns
+  
   // Private Information (Visible only to approved influencers)
   exactStartDate: timestamp("exact_start_date"),
   exactEndDate: timestamp("exact_end_date"),
@@ -103,6 +115,32 @@ export const brandCampaigns = pgTable("brand_campaigns", {
   targetEngagement: varchar("target_engagement"),
   kpiMetrics: text("kpi_metrics").array(), // ['reach', 'conversions', 'engagement_rate']
   competitorBenchmarks: text("competitor_benchmarks"),
+  
+  // Enhanced Content Brief Section
+  briefOverview: text("brief_overview"), // Comprehensive campaign overview
+  brandVoice: text("brand_voice"), // Brand voice and tone guidelines
+  keyMessages: text("key_messages").array(), // Key talking points
+  contentDosAndDonts: jsonb("content_dos_and_donts"), // {"dos": [...], "donts": [...]}
+  moodBoardUrls: text("mood_board_urls").array(), // Visual inspiration references
+  exampleContentUrls: text("example_content_urls").array(), // Example posts/videos
+  
+  // Detailed Payment Structure
+  paymentStructure: jsonb("payment_structure"), // {"upfront": 50, "completion": 50, "bonus": 0}
+  ratesByPlatform: jsonb("rates_by_platform"), // {"instagram_post": 500, "tiktok_video": 300}
+  paymentTimeline: text("payment_timeline"), // "Within 7 days of deliverable approval"
+  bonusStructure: jsonb("bonus_structure"), // Performance-based bonuses
+  
+  // Content Specifications
+  platformRequirements: jsonb("platform_requirements"), // Detailed specs per platform
+  contentFormats: text("content_formats").array(), // ['post', 'story', 'reel', 'video']
+  videoSpecs: jsonb("video_specs"), // {"duration": "30-60s", "resolution": "1080p", "aspect_ratio": "9:16"}
+  imageSpecs: jsonb("image_specs"), // {"resolution": "1080x1080", "format": "JPG/PNG"}
+  captionRequirements: text("caption_requirements"), // Caption style and length
+  
+  // Enhanced Target Audience
+  audiencePersonas: jsonb("audience_personas"), // Detailed persona descriptions
+  audienceInsights: jsonb("audience_insights"), // Demographic and psychographic data
+  competitorAnalysis: jsonb("competitor_analysis"), // Competitive landscape info
   
   // Legacy fields for backward compatibility
   budget: numeric("budget", { precision: 10, scale: 2 }),
@@ -181,6 +219,103 @@ export const campaignAutomationRules = pgTable("campaign_automation_rules", {
   isActive: boolean("is_active").default(true),
   lastTriggered: timestamp("last_triggered"),
   triggerCount: integer("trigger_count").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Campaign invitations for targeted influencer assignment
+export const campaignInvitations = pgTable("campaign_invitations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  campaignId: varchar("campaign_id").notNull().references(() => brandCampaigns.id, { onDelete: 'cascade' }),
+  influencerId: varchar("influencer_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  brandId: varchar("brand_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  status: varchar("status").notNull().default('pending'), // 'pending', 'accepted', 'declined', 'expired'
+  invitedAt: timestamp("invited_at").defaultNow(),
+  respondedAt: timestamp("responded_at"),
+  expiresAt: timestamp("expires_at"), // Invitation expiry date
+  personalMessage: text("personal_message"), // Custom message from brand to influencer
+  compensationOffer: varchar("compensation_offer"), // Specific offer for this influencer
+  metadata: jsonb("metadata"), // Additional invitation data
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Proposal Milestones - Track individual tasks within influencer proposals  
+export const proposalMilestones = pgTable("proposal_milestones", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  proposalId: varchar("proposal_id").notNull().references(() => campaignProposals.id, { onDelete: 'cascade' }),
+  campaignId: varchar("campaign_id").notNull().references(() => brandCampaigns.id, { onDelete: 'cascade' }),
+  influencerId: varchar("influencer_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  
+  // Milestone details
+  title: varchar("title").notNull(), // "Script Writing", "Filming", "Editing", "Posting"
+  description: text("description"),
+  status: varchar("status").notNull().default('pending'), // 'pending', 'in_progress', 'completed', 'skipped'
+  type: varchar("type").notNull(), // 'script_writing', 'filming', 'editing', 'posting', 'review', 'revision'
+  order: integer("order").notNull().default(0), // Order of milestones
+  
+  // Time tracking
+  estimatedHours: decimal("estimated_hours", { precision: 4, scale: 2 }),
+  actualHours: decimal("actual_hours", { precision: 4, scale: 2 }),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  
+  // Deadline tracking
+  dueDate: timestamp("due_date"),
+  isUrgent: boolean("is_urgent").default(false), // Auto-calculated if < 2 days
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Time Tracking Sessions - Track actual work time
+export const timeTrackingSessions = pgTable("time_tracking_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  milestoneId: varchar("milestone_id").references(() => proposalMilestones.id, { onDelete: 'cascade' }),
+  proposalId: varchar("proposal_id").notNull().references(() => campaignProposals.id, { onDelete: 'cascade' }),
+  influencerId: varchar("influencer_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  
+  // Session details
+  startTime: timestamp("start_time").notNull(),
+  endTime: timestamp("end_time"),
+  duration: integer("duration"), // in seconds
+  description: text("description"), // What was worked on
+  
+  // Session metadata
+  isActive: boolean("is_active").default(false), // Currently running
+  pausedAt: timestamp("paused_at"),
+  resumedAt: timestamp("resumed_at"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Campaign Progress Stages - Overall campaign workflow tracking
+export const campaignProgressStages = pgTable("campaign_progress_stages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  proposalId: varchar("proposal_id").notNull().references(() => campaignProposals.id, { onDelete: 'cascade' }),
+  campaignId: varchar("campaign_id").notNull().references(() => brandCampaigns.id, { onDelete: 'cascade' }),
+  
+  // Progress stages (0-100%)
+  contentCreationProgress: integer("content_creation_progress").default(0),
+  submissionProgress: integer("submission_progress").default(0),
+  reviewProgress: integer("review_progress").default(0),
+  approvalProgress: integer("approval_progress").default(0),
+  paymentProgress: integer("payment_progress").default(0),
+  
+  // Current active stage
+  currentStage: varchar("current_stage").default('content_creation'), // 'content_creation', 'submission', 'review', 'approval', 'payment', 'completed'
+  overallProgress: integer("overall_progress").default(0), // 0-100%
+  
+  // Timeline tracking
+  contentCreationStarted: timestamp("content_creation_started"),
+  contentCreationCompleted: timestamp("content_creation_completed"),
+  submissionCompleted: timestamp("submission_completed"),
+  reviewStarted: timestamp("review_started"),
+  reviewCompleted: timestamp("review_completed"),
+  approvalCompleted: timestamp("approval_completed"),
+  paymentCompleted: timestamp("payment_completed"),
+  
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -1131,6 +1266,103 @@ export const reportTemplates = pgTable("report_templates", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
+// Campaign Q&A system for pre-application questions
+export const campaignQA = pgTable("campaign_qa", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  campaignId: varchar("campaign_id").notNull().references(() => brandCampaigns.id, { onDelete: 'cascade' }),
+  influencerId: varchar("influencer_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  brandId: varchar("brand_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  
+  // Question and answer content
+  question: text("question").notNull(),
+  answer: text("answer"),
+  status: varchar("status").notNull().default('pending'), // 'pending', 'answered', 'dismissed'
+  
+  // Question categorization
+  category: varchar("category"), // 'content_requirements', 'payment', 'timeline', 'deliverables', 'other'
+  isPublic: boolean("is_public").default(false), // Whether answer should be visible to other influencers
+  
+  // Response tracking
+  answeredAt: timestamp("answered_at"),
+  answeredBy: varchar("answered_by").references(() => users.id),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Campaign messaging system for approved collaborations
+export const campaignMessages = pgTable("campaign_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  campaignId: varchar("campaign_id").notNull().references(() => brandCampaigns.id, { onDelete: 'cascade' }),
+  proposalId: varchar("proposal_id").references(() => campaignProposals.id, { onDelete: 'cascade' }),
+  senderId: varchar("sender_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  recipientId: varchar("recipient_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  
+  // Message content
+  messageType: varchar("message_type").notNull().default('text'), // 'text', 'file', 'image', 'approval_request', 'revision_request'
+  content: text("content").notNull(),
+  attachments: text("attachments").array().default([]), // File URLs
+  
+  // Message context
+  messageContext: varchar("message_context"), // 'general', 'content_submission', 'revision', 'payment', 'milestone'
+  relatedContentId: varchar("related_content_id"), // Reference to specific content being discussed
+  
+  // Message status
+  status: varchar("status").notNull().default('sent'), // 'sent', 'delivered', 'read', 'edited', 'deleted'
+  readAt: timestamp("read_at"),
+  editedAt: timestamp("edited_at"),
+  
+  // Threading
+  threadId: varchar("thread_id"), // For grouping related messages
+  replyToId: varchar("reply_to_id"), // For message threading
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Real-time campaign performance tracking
+export const campaignPerformanceMetrics = pgTable("campaign_performance_metrics", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  campaignId: varchar("campaign_id").notNull().references(() => brandCampaigns.id, { onDelete: 'cascade' }),
+  proposalId: varchar("proposal_id").references(() => campaignProposals.id, { onDelete: 'cascade' }),
+  contentId: varchar("content_id").references(() => campaignContent.id, { onDelete: 'cascade' }),
+  
+  // Performance data
+  platform: varchar("platform").notNull(), // 'instagram', 'tiktok', 'youtube', 'facebook'
+  contentType: varchar("content_type").notNull(), // 'post', 'story', 'reel', 'video'
+  
+  // Engagement metrics
+  views: integer("views").default(0),
+  likes: integer("likes").default(0),
+  comments: integer("comments").default(0),
+  shares: integer("shares").default(0),
+  saves: integer("saves").default(0),
+  clicks: integer("clicks").default(0),
+  
+  // Reach metrics
+  reach: integer("reach").default(0),
+  impressions: integer("impressions").default(0),
+  uniqueViews: integer("unique_views").default(0),
+  
+  // Conversion metrics
+  websiteVisits: integer("website_visits").default(0),
+  conversions: integer("conversions").default(0),
+  revenue: numeric("revenue", { precision: 10, scale: 2 }).default('0.00'),
+  
+  // Calculated metrics
+  engagementRate: numeric("engagement_rate", { precision: 5, scale: 2 }).default('0.00'),
+  clickThroughRate: numeric("click_through_rate", { precision: 5, scale: 2 }).default('0.00'),
+  conversionRate: numeric("conversion_rate", { precision: 5, scale: 2 }).default('0.00'),
+  costPerEngagement: numeric("cost_per_engagement", { precision: 8, scale: 2 }).default('0.00'),
+  returnOnAdSpend: numeric("return_on_ad_spend", { precision: 8, scale: 2 }).default('0.00'),
+  
+  // Time tracking
+  lastUpdated: timestamp("last_updated").defaultNow(),
+  dataSource: varchar("data_source"), // 'manual', 'api', 'imported'
+  
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Conversations table for organizing message threads
 export const conversations = pgTable("conversations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -1334,7 +1566,7 @@ export const insertPaymentTransactionSchema = createInsertSchema(paymentTransact
   createdAt: true,
 });
 
-export const insertBrandProfileSchema = createInsertSchema(brandProfiles).omit({
+export const insertBrandSchema = createInsertSchema(brands).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
@@ -1527,8 +1759,8 @@ export type CampaignPayment = typeof campaignPayments.$inferSelect;
 export type InsertCampaignPayment = z.infer<typeof insertCampaignPaymentSchema>;
 export type PaymentTransaction = typeof paymentTransactions.$inferSelect;
 export type InsertPaymentTransaction = z.infer<typeof insertPaymentTransactionSchema>;
-export type BrandProfile = typeof brandProfiles.$inferSelect;
-export type InsertBrandProfile = z.infer<typeof insertBrandProfileSchema>;
+export type Brand = typeof brands.$inferSelect;
+export type InsertBrand = z.infer<typeof insertBrandSchema>;
 export type BrandCampaign = typeof brandCampaigns.$inferSelect;
 export type InsertBrandCampaign = z.infer<typeof insertBrandCampaignSchema>;
 export type CampaignProposal = typeof campaignProposals.$inferSelect;
@@ -1589,6 +1821,32 @@ export type CommunicationActivity = typeof communicationActivity.$inferSelect;
 export type InsertCommunicationActivity = z.infer<typeof insertCommunicationActivitySchema>;
 export type ConversationParticipant = typeof conversationParticipants.$inferSelect;
 export type InsertConversationParticipant = z.infer<typeof insertConversationParticipantSchema>;
+
+// Campaign enhancement insert schemas
+export const insertCampaignQASchema = createInsertSchema(campaignQA).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertCampaignMessageSchema = createInsertSchema(campaignMessages).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertCampaignPerformanceMetricsSchema = createInsertSchema(campaignPerformanceMetrics).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Campaign enhancement types
+export type CampaignQA = typeof campaignQA.$inferSelect;
+export type InsertCampaignQA = z.infer<typeof insertCampaignQASchema>;
+export type CampaignMessage = typeof campaignMessages.$inferSelect;
+export type InsertCampaignMessage = z.infer<typeof insertCampaignMessageSchema>;
+export type CampaignPerformanceMetrics = typeof campaignPerformanceMetrics.$inferSelect;
+export type InsertCampaignPerformanceMetrics = z.infer<typeof insertCampaignPerformanceMetricsSchema>;
 
 // Audit logging table for tracking sensitive operations
 export const auditLogs = pgTable("audit_logs", {
@@ -1658,6 +1916,24 @@ export const insertCampaignMilestoneSchema = createInsertSchema(campaignMileston
   updatedAt: true,
 });
 
+export const insertProposalMilestoneSchema = createInsertSchema(proposalMilestones).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertTimeTrackingSessionSchema = createInsertSchema(timeTrackingSessions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertCampaignProgressStageSchema = createInsertSchema(campaignProgressStages).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertCampaignActivityLogSchema = createInsertSchema(campaignActivityLog).omit({
   id: true,
   createdAt: true,
@@ -1677,6 +1953,12 @@ export const insertCampaignAutomationRuleSchema = createInsertSchema(campaignAut
 // Campaign lifecycle types
 export type CampaignMilestone = typeof campaignMilestones.$inferSelect;
 export type InsertCampaignMilestone = z.infer<typeof insertCampaignMilestoneSchema>;
+export type ProposalMilestone = typeof proposalMilestones.$inferSelect;
+export type InsertProposalMilestone = z.infer<typeof insertProposalMilestoneSchema>;
+export type TimeTrackingSession = typeof timeTrackingSessions.$inferSelect;
+export type InsertTimeTrackingSession = z.infer<typeof insertTimeTrackingSessionSchema>;
+export type CampaignProgressStage = typeof campaignProgressStages.$inferSelect;
+export type InsertCampaignProgressStage = z.infer<typeof insertCampaignProgressStageSchema>;
 export type CampaignActivityLog = typeof campaignActivityLog.$inferSelect;
 export type InsertCampaignActivityLog = z.infer<typeof insertCampaignActivityLogSchema>;
 export type CampaignNotification = typeof campaignNotifications.$inferSelect;

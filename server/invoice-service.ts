@@ -77,8 +77,8 @@ export class InvoiceService {
   // Helper method to get brand's currency preference
   private static async getBrandCurrency(brandId: string): Promise<string> {
     try {
-      const brandProfile = await storage.getBrandProfile(brandId);
-      return brandProfile?.preferredCurrency || 'INR';
+      const brand = await storage.getBrandProfile(brandId);
+      return brand?.preferredCurrency || 'INR';
     } catch (error) {
       console.error('Error fetching brand currency preference:', error);
       return 'INR'; // fallback to INR
@@ -332,17 +332,8 @@ export class InvoiceService {
     
     yPosition += 8;
 
-    // Platform commission breakdown (5%)
-    const platformCommission = Number(invoice.subtotalAmount) * 0.05;
-    doc.text('Platform Fee (5%):', totalsStartX, yPosition);
-    doc.text(`-${InvoiceService.formatCurrencyForPDF(platformCommission, invoice.currency || 'INR')}`, 185, yPosition, { align: 'right' });
-    yPosition += 8;
-
-    // Net amount after platform commission
-    const netAfterCommission = Number(invoice.subtotalAmount) - platformCommission;
-    doc.text('Net Amount:', totalsStartX, yPosition);
-    doc.text(InvoiceService.formatCurrencyForPDF(netAfterCommission, invoice.currency || 'INR'), 185, yPosition, { align: 'right' });
-    yPosition += 8;
+    // No platform fee deduction on invoice - brand pays full amount
+    // Platform commission is handled separately in payment processing
 
     // Tax breakdown
     if (invoice.taxCalculations && invoice.taxCalculations.length > 0) {
@@ -369,14 +360,14 @@ export class InvoiceService {
     doc.setTextColor(...primaryColor);
     doc.setFontSize(10);
     
-    // Platform commission disclosure
-    doc.text('Platform Commission Disclosure:', 20, yPosition);
-    const disclosureText = doc.splitTextToSize(
-      'A 5% platform commission is automatically deducted from all campaign payments to cover platform services, payment processing, and platform maintenance. This fee supports the continued development and operation of the Influencer Hub platform.',
+    // Payment information
+    doc.text('Payment Information:', 20, yPosition);
+    const paymentInfo = doc.splitTextToSize(
+      'This invoice represents the full campaign compensation amount to be paid by the brand. Upon payment, a 5% platform commission will be automatically deducted to cover platform services, with the remaining amount transferred to the influencer.',
       170
     );
-    doc.text(disclosureText, 20, yPosition + 6);
-    yPosition += disclosureText.length * 4 + 15;
+    doc.text(paymentInfo, 20, yPosition + 6);
+    yPosition += paymentInfo.length * 4 + 15;
     
     if (invoice.paymentTerms) {
       doc.text('Payment Terms:', 20, yPosition);

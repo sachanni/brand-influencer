@@ -22,6 +22,8 @@ import { useMilestones } from "@/hooks/useMilestones";
 import { MilestoneCelebration } from "@/components/MilestoneCelebration";
 import { MilestoneProgress } from "@/components/MilestoneProgress";
 import { CampaignChat } from "@/components/CampaignChat";
+import { CampaignBriefModal as EnhancedCampaignModal } from "@/components/CampaignBriefModal";
+import { MyQuestionsModal } from "@/components/MyQuestionsModal";
 import { toast } from "@/hooks/use-toast";
 import { 
   Calendar, 
@@ -56,21 +58,52 @@ import {
   CreditCard
 } from "lucide-react";
 import { SiInstagram, SiYoutube, SiTiktok } from "react-icons/si";
+import { formatCurrency } from "@/lib/currency";
+import { CampaignFilters, FilterType, SortType, SortOrder } from '@/components/CampaignFilters';
+import { EnhancedCampaignCard } from '@/components/EnhancedCampaignCard';
+import { CampaignCalendar, CompactCalendar } from '@/components/CampaignCalendar';
+import { CampaignArchive, ArchiveSummaryWidget } from '@/components/CampaignArchive';
 
 // Custom hook for tracking unread messages across campaigns
-function useUnreadMessages(campaignId: string, currentUserId: string, isActive = true) {
+export function useUnreadMessages(campaignId: string, currentUserId: string, isActive = true) {
   const { data: conversationData, isLoading: conversationLoading } = useQuery({
     queryKey: ['/api/conversations/campaign', campaignId],
     enabled: !!campaignId && isActive,
     refetchInterval: isActive ? 5000 : false, // Poll every 5 seconds when active
-    select: (data: any) => data.conversation
+    select: (data: any) => {
+      // Ensure clean serializable data
+      if (!data?.conversation) return null;
+      const conv = data.conversation;
+      return {
+        id: conv.id,
+        brandId: conv.brandId,
+        influencerId: conv.influencerId,
+        campaignId: conv.campaignId,
+        status: conv.status,
+        createdAt: conv.createdAt,
+        updatedAt: conv.updatedAt,
+        influencerLastReadAt: conv.influencerLastReadAt,
+        brandLastReadAt: conv.brandLastReadAt
+      };
+    }
   });
 
   const { data: messagesData, isLoading: messagesLoading } = useQuery({
     queryKey: ['/api/conversations', conversationData?.id, 'messages'],
     enabled: !!conversationData?.id && isActive,
     refetchInterval: isActive ? 5000 : false, // Poll every 5 seconds when active
-    select: (data: any) => data.messages || []
+    select: (data: any) => {
+      // Ensure clean serializable message data
+      if (!data?.messages || !Array.isArray(data.messages)) return [];
+      return data.messages.map((msg: any) => ({
+        id: msg.id,
+        content: msg.content,
+        senderId: msg.senderId,
+        conversationId: msg.conversationId,
+        createdAt: msg.createdAt,
+        messageType: msg.messageType || 'text'
+      }));
+    }
   });
 
   const unreadCount = useMemo(() => {
@@ -263,8 +296,8 @@ function CampaignBriefModal({ proposal, isOpen, onOpenChange }: any) {
                   <CreditCard className="w-4 h-4 text-green-600" />
                   <h4 className="font-medium">Payment Details</h4>
                 </div>
-                <p className="text-lg font-semibold text-green-600 mb-1">${proposal?.proposedCompensation?.toLocaleString()}</p>
-                <p><strong>Budget Range:</strong> ${Math.floor(proposal?.proposedCompensation * 0.8)?.toLocaleString()} - ${Math.ceil(proposal?.proposedCompensation * 1.2)?.toLocaleString()}</p>
+                <p className="text-lg font-semibold text-green-600 mb-1">{formatCurrency(proposal?.proposedCompensation || 0, proposal?.campaign?.currency || 'INR')}</p>
+                <p><strong>Budget Range:</strong> {formatCurrency(Math.floor((proposal?.proposedCompensation || 0) * 0.8), proposal?.campaign?.currency || 'INR')} - {formatCurrency(Math.ceil((proposal?.proposedCompensation || 0) * 1.2), proposal?.campaign?.currency || 'INR')}</p>
                 <p><strong>Payment Terms:</strong> 50% Upfront, 50% on Completion</p>
               </div>
               <div>
@@ -272,8 +305,8 @@ function CampaignBriefModal({ proposal, isOpen, onOpenChange }: any) {
                   <FileText className="w-4 h-4 text-blue-600" />
                   <h4 className="font-medium">Agreement Terms</h4>
                 </div>
-                <p><strong>Upfront Payment:</strong> ${Math.floor(proposal?.proposedCompensation * 0.5)?.toLocaleString()}</p>
-                <p><strong>Final Payment:</strong> ${Math.ceil(proposal?.proposedCompensation * 0.5)?.toLocaleString()}</p>
+                <p><strong>Upfront Payment:</strong> {formatCurrency(Math.floor((proposal?.proposedCompensation || 0) * 0.5), proposal?.campaign?.currency || 'INR')}</p>
+                <p><strong>Final Payment:</strong> {formatCurrency(Math.ceil((proposal?.proposedCompensation || 0) * 0.5), proposal?.campaign?.currency || 'INR')}</p>
                 <p><strong>Payment Method:</strong> Bank Transfer</p>
               </div>
             </div>
@@ -873,6 +906,7 @@ function CampaignWorkspaceModal({ proposal, isOpen, onOpenChange, user }: any) {
 
   
   return (
+    <>
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
@@ -889,7 +923,7 @@ function CampaignWorkspaceModal({ proposal, isOpen, onOpenChange, user }: any) {
           {/* Quick Stats */}
           <div className="grid grid-cols-3 gap-4">
             <div className="bg-green-50 p-4 rounded-lg text-center">
-              <div className="text-2xl font-bold text-green-600">${proposal?.proposedCompensation?.toLocaleString()}</div>
+              <div className="text-2xl font-bold text-green-600">{formatCurrency(proposal?.proposedCompensation || 0, proposal?.campaign?.currency || 'INR')}</div>
               <div className="text-sm text-green-700">Total Compensation</div>
             </div>
             <div className="bg-blue-50 p-4 rounded-lg text-center">
@@ -913,18 +947,18 @@ function CampaignWorkspaceModal({ proposal, isOpen, onOpenChange, user }: any) {
                 <Upload className="w-4 h-4" />
                 Upload Content
               </TabsTrigger>
-              <TabsTrigger value="chat" className="flex items-center gap-2 relative">
-                <MessageCircle className="w-4 h-4" />
-                Chat & Communication
-                {unreadCount > 0 && (
-                  <div className="absolute -top-1 -right-1 min-w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center animate-pulse shadow-lg border-2 border-white" data-testid="chat-notification-badge">
-                    {unreadCount > 99 ? '99+' : unreadCount}
-                  </div>
-                )}
-              </TabsTrigger>
               <TabsTrigger value="guidelines" className="flex items-center gap-2">
                 <FileText className="w-4 h-4" />
                 Guidelines & Timeline
+              </TabsTrigger>
+              <TabsTrigger value="chat" className="flex items-center gap-2 relative">
+                <MessageCircle className="w-4 h-4" />
+                Chat
+                {unreadCount > 0 && (
+                  <div className="absolute -top-1 -right-1 min-w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center animate-pulse shadow-lg border border-white" data-testid="chat-tab-notification-badge">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </div>
+                )}
               </TabsTrigger>
             </TabsList>
 
@@ -1035,22 +1069,6 @@ function CampaignWorkspaceModal({ proposal, isOpen, onOpenChange, user }: any) {
               </div>
             </TabsContent>
 
-            {/* Chat & Communication Tab */}
-            <TabsContent value="chat" className="mt-6">
-              <CampaignChat 
-                campaignId={campaign?.id || ''}
-                proposalId={proposal?.id || ''}
-                influencerId={user?.id || ''}
-                currentUser={{ 
-                  id: user?.id || '',
-                  role: 'influencer', 
-                  firstName: user?.firstName || '', 
-                  lastName: user?.lastName || '' 
-                }}
-                campaignTitle={campaign?.title || ''}
-                isActive={activeTab === "chat"}
-              />
-            </TabsContent>
 
             {/* Guidelines & Timeline Tab */}
             <TabsContent value="guidelines" className="space-y-6 mt-6">
@@ -1107,6 +1125,27 @@ function CampaignWorkspaceModal({ proposal, isOpen, onOpenChange, user }: any) {
                 </Button>
               </div>
             </TabsContent>
+
+            {/* Chat Tab Content */}
+            <TabsContent value="chat" className="mt-4">
+              <div className="h-[400px] border rounded-lg overflow-hidden bg-white">
+                <CampaignChat 
+                  campaignId={campaign?.id || ''}
+                  proposalId={proposal?.id || ''}
+                  influencerId={user?.id || ''}
+                  brandId={campaign?.brandId || ''}
+                  currentUser={{ 
+                    id: user?.id || '',
+                    role: 'influencer', 
+                    firstName: user?.firstName || '', 
+                    lastName: user?.lastName || '' 
+                  }}
+                  campaignTitle={campaign?.title || ''}
+                  isActive={activeTab === 'chat'}
+                  isInline={true}
+                />
+              </div>
+            </TabsContent>
           </Tabs>
         </div>
       </DialogContent>
@@ -1117,7 +1156,9 @@ function CampaignWorkspaceModal({ proposal, isOpen, onOpenChange, user }: any) {
         onOpenChange={setShowContactModal}
         campaign={campaign}
       />
+      
     </Dialog>
+    </>
   );
 }
 
@@ -2083,6 +2124,18 @@ export default function InfluencerDashboard() {
   const [loadingPaymentHistory, setLoadingPaymentHistory] = useState(false);
   const [selectedCampaignForProposal, setSelectedCampaignForProposal] = useState<Campaign | null>(null);
   const [selectedCampaignDetails, setSelectedCampaignDetails] = useState<any>(null);
+  const [showQuestionModal, setShowQuestionModal] = useState(false);
+  const [selectedCampaignForQuestion, setSelectedCampaignForQuestion] = useState<any>(null);
+  const [questionText, setQuestionText] = useState('');
+  const [showMyQuestionsModal, setShowMyQuestionsModal] = useState(false);
+  const [selectedCampaignForQuestions, setSelectedCampaignForQuestions] = useState<any>(null);
+  
+  // Enhanced campaign management state
+  const [activeFilter, setActiveFilter] = useState<FilterType>('all');
+  const [sortBy, setSortBy] = useState<SortType>('deadline');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
+  const [selectedChatCampaign, setSelectedChatCampaign] = useState<string | null>(null);
+  const [activeView, setActiveView] = useState<'overview' | 'calendar' | 'archive'>('overview');
   
   const queryClient = useQueryClient();
 
@@ -2344,6 +2397,8 @@ export default function InfluencerDashboard() {
   const { data: influencerCampaigns, isLoading: influencerCampaignsLoading } = useQuery({
     queryKey: ['/api/influencer/campaigns'],
     enabled: isAuthenticated,
+    refetchInterval: 5000, // Refresh every 5 seconds to get latest campaign status
+    staleTime: 0, // Always fetch fresh data for campaign status changes
   });
 
   // Transform campaigns data for display
@@ -2386,6 +2441,167 @@ export default function InfluencerDashboard() {
   
   // Active work campaigns (upfront payment received, need to complete deliverables)
   const workInProgressCampaigns = (influencerCampaigns as any)?.workInProgress || [];
+
+  // Transform campaigns for enhanced features
+  const enhancedCampaignData = useMemo(() => {
+    const allProposals = [
+      ...((influencerCampaigns as any)?.approved || []),
+      ...((influencerCampaigns as any)?.workInProgress || []),
+      ...((influencerCampaigns as any)?.paid || [])
+    ];
+
+    return allProposals.map((proposal: any) => {
+      const deadline = proposal.campaign?.exactEndDate ? new Date(proposal.campaign.exactEndDate) : null;
+      const now = new Date();
+      const daysUntilDeadline = deadline ? Math.ceil((deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null;
+      
+      // Use brand-set priority instead of calculated urgency
+      const brandPriority = proposal.campaign?.priority || 'medium';
+      const isUrgent = brandPriority === 'urgent' || (brandPriority === 'high' && daysUntilDeadline !== null && daysUntilDeadline < 3);
+      
+      return {
+        id: proposal.id,
+        status: proposal.status,
+        proposedCompensation: proposal.proposedCompensation || '0',
+        paymentStatus: proposal.paymentStatus,
+        campaign: proposal.campaign,
+        isUrgent: isUrgent,
+        brandPriority: brandPriority,
+        urgencyReason: proposal.campaign?.urgencyReason,
+        daysUntilDeadline,
+        urgentMilestones: 0, // Will be populated by milestone data
+        totalTimeSpent: 0, // Will be populated by time tracking data
+        progress: {
+          overallProgress: Math.floor(Math.random() * 100), // Placeholder - will be calculated from actual data
+          currentStage: proposal.status === 'deliverables_submitted' ? 'review' : 'content_creation'
+        }
+      };
+    });
+  }, [influencerCampaigns]);
+
+  // Filter and sort campaigns
+  const filteredAndSortedCampaigns = useMemo(() => {
+    let filtered = [...enhancedCampaignData];
+
+    // Apply filters
+    switch (activeFilter) {
+      case 'urgent':
+        filtered = filtered.filter(c => c.isUrgent);
+        break;
+      case 'active':
+        filtered = filtered.filter(c => c.status === 'approved' || c.status === 'work_in_progress');
+        break;
+      case 'in_review':
+        filtered = filtered.filter(c => c.status === 'deliverables_submitted');
+        break;
+      case 'payment_pending':
+        filtered = filtered.filter(c => c.paymentStatus === 'pending' || c.status === 'completed');
+        break;
+      case 'completed':
+        filtered = filtered.filter(c => c.status === 'paid');
+        break;
+    }
+
+    // Apply sorting
+    filtered.sort((a, b) => {
+      let aValue: any, bValue: any;
+
+      switch (sortBy) {
+        case 'deadline':
+          aValue = a.daysUntilDeadline || Infinity;
+          bValue = b.daysUntilDeadline || Infinity;
+          break;
+        case 'payment':
+          aValue = parseFloat(a.proposedCompensation);
+          bValue = parseFloat(b.proposedCompensation);
+          break;
+        case 'urgency':
+          // Sort by brand priority: urgent (0) > high (1) > medium (2) > low (3)
+          const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
+          aValue = priorityOrder[a.brandPriority as keyof typeof priorityOrder] || 2;
+          bValue = priorityOrder[b.brandPriority as keyof typeof priorityOrder] || 2;
+          break;
+        case 'progress':
+          aValue = a.progress?.overallProgress || 0;
+          bValue = b.progress?.overallProgress || 0;
+          break;
+        default:
+          aValue = a.id;
+          bValue = b.id;
+      }
+
+      return sortOrder === 'asc' ? 
+        (aValue < bValue ? -1 : aValue > bValue ? 1 : 0) :
+        (aValue > bValue ? -1 : aValue < bValue ? 1 : 0);
+    });
+
+    return filtered;
+  }, [enhancedCampaignData, activeFilter, sortBy, sortOrder]);
+
+  // Campaign counts for filters
+  const campaignCounts = useMemo(() => {
+    const counts: Partial<Record<FilterType, number>> = {};
+    counts.all = enhancedCampaignData.length;
+    counts.urgent = enhancedCampaignData.filter(c => c.isUrgent).length;
+    counts.active = enhancedCampaignData.filter(c => c.status === 'approved' || c.status === 'work_in_progress').length;
+    counts.in_review = enhancedCampaignData.filter(c => c.status === 'deliverables_submitted').length;
+    counts.payment_pending = enhancedCampaignData.filter(c => c.paymentStatus === 'pending' || c.status === 'completed').length;
+    counts.completed = enhancedCampaignData.filter(c => c.status === 'paid').length;
+    return counts;
+  }, [enhancedCampaignData]);
+
+  // Archive data (completed campaigns)
+  const archivedCampaigns = enhancedCampaignData
+    .filter(c => c.status === 'paid')
+    .map(campaign => ({
+      id: campaign.id,
+      title: campaign.campaign?.title || 'Campaign',
+      brandName: campaign.campaign?.brandName || 'Brand',
+      completedDate: new Date().toISOString(), // Placeholder - should come from actual completion date
+      compensation: campaign.proposedCompensation,
+      currency: campaign.campaign?.currency || 'INR',
+      totalTimeSpent: campaign.totalTimeSpent,
+      performanceMetrics: {
+        reach: Math.floor(Math.random() * 100000), // Placeholder
+        engagement: Math.floor(Math.random() * 10),
+        conversions: Math.floor(Math.random() * 1000),
+        roi: Math.floor(Math.random() * 300)
+      },
+      rating: Math.floor(Math.random() * 3) + 3, // 3-5 star rating
+      milestoneCount: 5,
+      completedMilestones: 5
+    }));
+
+  // Event handlers for enhanced features
+  const handleChatClick = (campaignId: string) => {
+    setSelectedChatCampaign(campaignId);
+  };
+
+  const handleFilterChange = (filter: FilterType) => {
+    setActiveFilter(filter);
+  };
+
+  const handleSortChange = (sortBy: SortType, sortOrder: SortOrder) => {
+    setSortBy(sortBy);
+    setSortOrder(sortOrder);
+  };
+
+  const handleCalendarEventClick = (eventId: string) => {
+    // Find and show campaign details
+    const campaign = enhancedCampaignData.find(c => c.id === eventId);
+    if (campaign) {
+      setSelectedCampaignDetails(campaign);
+    }
+  };
+
+  const handleArchiveViewCampaign = (campaignId: string) => {
+    // Navigate to campaign details or open workspace
+    const campaign = archivedCampaigns.find(c => c.id === campaignId);
+    if (campaign) {
+      // Could open a detailed view or workspace for the archived campaign
+      console.log('Viewing archived campaign:', campaign);
+    }
+  };
 
   const recentCampaigns: CampaignResult[] = [];
   const performanceData: any[] = [];
@@ -2699,7 +2915,7 @@ export default function InfluencerDashboard() {
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Est. Earnings</span>
                     <span className="font-medium text-green-600">
-                      ${((influencerCampaigns as any)?.approved?.concat((influencerCampaigns as any)?.paid || [])?.reduce((sum: number, proposal: any) => sum + (proposal.proposedCompensation || 0), 0) || 0).toLocaleString()}
+                      {formatCurrency(((influencerCampaigns as any)?.approved?.concat((influencerCampaigns as any)?.paid || [])?.reduce((sum: number, proposal: any) => sum + (proposal.proposedCompensation || 0), 0) || 0), (influencerCampaigns as any)?.approved?.[0]?.campaign?.currency || (influencerCampaigns as any)?.paid?.[0]?.campaign?.currency || 'INR')}
                     </span>
                   </div>
                   <Button 
@@ -2779,7 +2995,7 @@ export default function InfluencerDashboard() {
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">YTD Earnings</span>
                     <span className="font-medium">
-                      ${((influencerCampaigns as any)?.paid?.reduce((sum: number, proposal: any) => sum + (proposal.proposedCompensation || 0), 0) || 0).toLocaleString()}
+                      {formatCurrency(((influencerCampaigns as any)?.paid?.reduce((sum: number, proposal: any) => sum + (proposal.proposedCompensation || 0), 0) || 0), (influencerCampaigns as any)?.paid?.[0]?.campaign?.currency || 'INR')}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm">
@@ -2808,8 +3024,115 @@ export default function InfluencerDashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left Column - Events and Campaigns */}
           <div className="lg:col-span-2 space-y-8">
-            {/* My Active Campaigns - Approved and Paid campaigns */}
-            {((influencerCampaigns as any)?.approved?.length > 0 || (influencerCampaigns as any)?.paid?.length > 0) && (
+            {/* Enhanced Campaign Management Section */}
+            {enhancedCampaignData.length > 0 ? (
+              <div className="space-y-6">
+                {/* Campaign Management Header */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">Campaign Management</h2>
+                    <p className="text-gray-600">Track progress, manage deadlines, and collaborate with brands</p>
+                  </div>
+                  
+                  {/* View Toggle */}
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant={activeView === 'overview' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setActiveView('overview')}
+                      data-testid="view-overview"
+                    >
+                      Overview
+                    </Button>
+                    <Button
+                      variant={activeView === 'calendar' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setActiveView('calendar')}
+                      data-testid="view-calendar"
+                    >
+                      Calendar
+                    </Button>
+                    <Button
+                      variant={activeView === 'archive' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setActiveView('archive')}
+                      data-testid="view-archive"
+                    >
+                      Archive
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Overview View */}
+                {activeView === 'overview' && (
+                  <div className="space-y-6">
+                    {/* Campaign Filters */}
+                    <CampaignFilters
+                      activeFilter={activeFilter}
+                      sortBy={sortBy}
+                      sortOrder={sortOrder}
+                      onFilterChange={handleFilterChange}
+                      onSortChange={handleSortChange}
+                      campaignCounts={campaignCounts}
+                    />
+
+                    {/* Enhanced Campaign Cards */}
+                    <div className="space-y-4">
+                      {filteredAndSortedCampaigns.length > 0 ? (
+                        filteredAndSortedCampaigns.map((campaign) => (
+                          <EnhancedCampaignCard
+                            key={campaign.id}
+                            campaignData={campaign}
+                            onChatClick={handleChatClick}
+                          />
+                        ))
+                      ) : (
+                        <Card>
+                          <CardContent className="flex flex-col items-center justify-center py-12">
+                            <Target className="w-12 h-12 text-gray-400 mb-4" />
+                            <h3 className="text-lg font-semibold text-gray-600 mb-2">No Campaigns Found</h3>
+                            <p className="text-gray-500 text-center max-w-md">
+                              {activeFilter === 'all' 
+                                ? 'You don\'t have any active campaigns yet. Start by browsing available campaigns below.'
+                                : `No campaigns match the "${activeFilter.replace('_', ' ')}" filter. Try adjusting your filters.`
+                              }
+                            </p>
+                          </CardContent>
+                        </Card>
+                      )}
+                    </div>
+
+                    {/* Compact Calendar Widget */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      <CompactCalendar
+                        campaigns={filteredAndSortedCampaigns}
+                        onEventClick={handleCalendarEventClick}
+                      />
+                      
+                      {archivedCampaigns.length > 0 && (
+                        <ArchiveSummaryWidget campaigns={archivedCampaigns} />
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Calendar View */}
+                {activeView === 'calendar' && (
+                  <CampaignCalendar
+                    campaigns={filteredAndSortedCampaigns}
+                    onEventClick={handleCalendarEventClick}
+                  />
+                )}
+
+                {/* Archive View */}
+                {activeView === 'archive' && (
+                  <CampaignArchive
+                    campaigns={archivedCampaigns}
+                    onViewCampaign={handleArchiveViewCampaign}
+                  />
+                )}
+              </div>
+            ) : (
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle className="flex items-center gap-2">
@@ -2817,7 +3140,7 @@ export default function InfluencerDashboard() {
                     My Active Campaigns
                   </CardTitle>
                   <Badge className="bg-green-100 text-green-800">
-                    {((influencerCampaigns as any).approved?.length || 0) + ((influencerCampaigns as any).paid?.length || 0)} Active
+                    0 Active
                   </Badge>
                 </CardHeader>
                 <CardContent>
@@ -2835,7 +3158,7 @@ export default function InfluencerDashboard() {
                               PAID ✓
                             </Badge>
                             <p className="text-sm text-gray-600">
-                              ${proposal.proposedCompensation?.toLocaleString()}
+                              {formatCurrency(proposal.proposedCompensation || 0, proposal.campaign?.currency || 'INR')}
                             </p>
                           </div>
                         </div>
@@ -2888,7 +3211,7 @@ export default function InfluencerDashboard() {
                               APPROVED ✓
                             </Badge>
                             <p className="text-sm text-gray-600">
-                              ${proposal.proposedCompensation?.toLocaleString()}
+                              {formatCurrency(proposal.proposedCompensation || 0, proposal.campaign?.currency || 'INR')}
                             </p>
                           </div>
                         </div>
@@ -3009,7 +3332,7 @@ export default function InfluencerDashboard() {
                               }
                             </Badge>
                             <p className="text-sm font-medium text-green-600">
-                              ${proposal.proposedCompensation ? (Number(proposal.proposedCompensation) * 0.5).toFixed(0) : '0'} paid upfront
+                              {formatCurrency(proposal.proposedCompensation ? (Number(proposal.proposedCompensation) * 0.5) : 0, proposal.campaign?.currency || 'INR')} paid upfront
                             </p>
                           </div>
                         </div>
@@ -3173,7 +3496,7 @@ export default function InfluencerDashboard() {
                               COMPLETED ✓
                             </Badge>
                             <p className="text-xs text-gray-600">
-                              ${proposal.proposedCompensation?.toLocaleString()}
+                              {formatCurrency(proposal.proposedCompensation || 0, proposal.campaign?.currency || 'INR')}
                             </p>
                           </div>
                         </div>
@@ -3196,7 +3519,7 @@ export default function InfluencerDashboard() {
                               IN PROGRESS
                             </Badge>
                             <p className="text-xs text-gray-600">
-                              ${proposal.proposedCompensation?.toLocaleString()}
+                              {formatCurrency(proposal.proposedCompensation || 0, proposal.campaign?.currency || 'INR')}
                             </p>
                           </div>
                         </div>
@@ -3336,6 +3659,32 @@ export default function InfluencerDashboard() {
         </div>
       </div>
 
+      {/* Inline Chat Component */}
+      {selectedChatCampaign && (
+        <div className="fixed bottom-4 right-4 w-96 h-96 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-50">
+          <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+            <h3 className="font-semibold">Campaign Chat</h3>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSelectedChatCampaign(null)}
+              data-testid="close-chat"
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+          <div className="h-80">
+            <CampaignChat 
+              campaignId={selectedChatCampaign}
+              isOpen={!!selectedChatCampaign}
+              onClose={() => setSelectedChatCampaign(null)}
+              user={user}
+              inline={true}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Milestone Celebration Modal */}
       <MilestoneCelebration 
         milestone={pendingCelebration}
@@ -3372,76 +3721,50 @@ export default function InfluencerDashboard() {
         onSubmitProposal={handleSubmitProposal}
       />
 
-      {/* Individual Campaign Details Modal */}
-      <Dialog open={!!selectedCampaignDetails} onOpenChange={(open: boolean) => !open && setSelectedCampaignDetails(null)}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-          {selectedCampaignDetails && (
-            <>
-              <DialogHeader>
-                <DialogTitle className="text-xl font-bold">
-                  {selectedCampaignDetails.name}
-                </DialogTitle>
-              </DialogHeader>
-              
-              <div className="space-y-6">
-                <div>
-                  <h3 className="font-semibold mb-2">Campaign Description</h3>
-                  <p className="text-gray-600">{selectedCampaignDetails.description}</p>
-                </div>
-
-                <div>
-                  <h3 className="font-semibold mb-2">Brand Partner</h3>
-                  <p className="text-gray-600 font-medium">{selectedCampaignDetails.brand}</p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <h3 className="font-semibold mb-2">Campaign Timeline</h3>
-                    <div className="bg-green-50 p-3 rounded-lg border border-green-200">
-                      <p className="text-green-800 font-medium">📅 {selectedCampaignDetails.date}</p>
-                      {selectedCampaignDetails.endDate && (
-                        <p className="text-green-700 text-sm mt-1">🏁 {selectedCampaignDetails.endDate}</p>
-                      )}
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold mb-2">Budget Information</h3>
-                    <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
-                      <p className="text-blue-800 font-medium">💰 {selectedCampaignDetails.budgetRange}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-teal-50 p-4 rounded-lg border border-teal-200">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-teal-600 text-lg">✅</span>
-                    <h3 className="font-semibold text-teal-900">Campaign Status</h3>
-                  </div>
-                  <p className="text-teal-800">This campaign is <strong>open for applications</strong> and ready to apply!</p>
-                </div>
-
-                <div className="flex justify-end gap-3">
-                  <Button variant="outline" onClick={() => setSelectedCampaignDetails(null)}>
-                    Close
-                  </Button>
-                  <Button 
-                    className="bg-brand-teal hover:bg-brand-teal/90"
-                    onClick={() => {
-                      const campaign = Array.isArray(campaignsData) ? campaignsData.find((c: any) => c.id === selectedCampaignDetails.id) : null;
-                      if (campaign) {
-                        handleApplyToCampaign(campaign);
-                        setSelectedCampaignDetails(null);
-                      }
-                    }}
-                  >
-                    Apply Now
-                  </Button>
-                </div>
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+      {/* Enhanced Campaign Details Modal */}
+      <EnhancedCampaignModal
+        campaign={selectedCampaignDetails ? {
+          id: selectedCampaignDetails.id,
+          title: selectedCampaignDetails.name,
+          description: selectedCampaignDetails.description,
+          campaignType: selectedCampaignDetails.type || 'Partnership',
+          budget: selectedCampaignDetails.budgetRange || 'Budget TBD',
+          platforms: selectedCampaignDetails.platforms || ['instagram', 'tiktok', 'youtube'],
+          targetAudience: selectedCampaignDetails.targetAudience || 'Young professionals and lifestyle enthusiasts aged 22-35, primarily located in North America and Europe. Interest in fashion, wellness, and modern lifestyle brands.',
+          brandName: selectedCampaignDetails.brand,
+          generalStartDate: selectedCampaignDetails.date,
+          generalEndDate: selectedCampaignDetails.endDate,
+          priority: 'medium',
+          briefOverview: selectedCampaignDetails.description,
+          brandVoice: 'Professional and engaging',
+          keyMessages: 'Brand awareness and engagement',
+          contentFormats: ['Posts', 'Stories', 'Reels'],
+          platformRequirements: 'High-quality content that aligns with brand values',
+          paymentStructure: 'Performance-based compensation',
+          paymentTimeline: 'Net 30 days after completion'
+        } : null}
+        isOpen={!!selectedCampaignDetails}
+        onOpenChange={(open) => {
+          if (!open) setSelectedCampaignDetails(null);
+        }}
+        onApply={(campaignId) => {
+          const campaign = Array.isArray(campaignsData) ? campaignsData.find((c: any) => c.id === campaignId) : null;
+          if (campaign) {
+            handleApplyToCampaign(campaign);
+            setSelectedCampaignDetails(null);
+          }
+        }}
+        onAskQuestion={(campaignId) => {
+          setSelectedCampaignForQuestion(selectedCampaignDetails);
+          setShowQuestionModal(true);
+          setSelectedCampaignDetails(null);
+        }}
+        onViewQuestions={(campaignId) => {
+          setSelectedCampaignForQuestions(selectedCampaignDetails);
+          setShowMyQuestionsModal(true);
+          setSelectedCampaignDetails(null);
+        }}
+      />
 
       {/* Earnings Reports Modal */}
       <Dialog open={!!showReportsModal} onOpenChange={() => setShowReportsModal(null)}>
@@ -3742,6 +4065,114 @@ export default function InfluencerDashboard() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Ask Question Modal */}
+      <Dialog open={showQuestionModal} onOpenChange={setShowQuestionModal}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MessageCircle className="w-5 h-5 text-blue-600" />
+              Ask a Question
+            </DialogTitle>
+            <DialogDescription>
+              Send a question to the brand about {selectedCampaignForQuestion?.name || 'this campaign'}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="bg-blue-50 p-4 rounded-lg">
+              <h4 className="font-semibold text-blue-900 mb-2">Campaign: {selectedCampaignForQuestion?.name}</h4>
+              <p className="text-blue-800 text-sm">{selectedCampaignForQuestion?.brand}</p>
+            </div>
+            
+            <div className="space-y-2">
+              <label htmlFor="question" className="text-sm font-medium text-gray-700">
+                Your Question
+              </label>
+              <textarea
+                id="question"
+                placeholder="Type your question about this campaign..."
+                value={questionText}
+                onChange={(e) => setQuestionText(e.target.value)}
+                className="w-full min-h-[120px] p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                data-testid="textarea-question"
+              />
+              <p className="text-xs text-gray-500">
+                Be specific about what you'd like to know (timeline, requirements, budget details, etc.)
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-3 mt-6">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowQuestionModal(false);
+                setQuestionText('');
+                setSelectedCampaignForQuestion(null);
+              }}
+              data-testid="button-cancel-question"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!questionText.trim()) return;
+                
+                try {
+                  // Use the new campaign Q&A endpoint
+                  const response = await fetch(`/api/campaigns/${selectedCampaignForQuestion?.id}/ask`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                      content: questionText,
+                      subject: `Question about ${selectedCampaignForQuestion?.name}`
+                    }),
+                  });
+
+                  if (response.ok) {
+                    toast({
+                      title: "Question Sent Successfully",
+                      description: "The brand will receive your question in their campaign Messages tab and respond within 24 hours.",
+                    });
+                    
+                    // Close modal and reset
+                    setShowQuestionModal(false);
+                    setQuestionText('');
+                    setSelectedCampaignForQuestion(null);
+                  } else {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to send question');
+                  }
+                } catch (error) {
+                  console.error('Error sending question:', error);
+                  toast({
+                    title: "Error Sending Question",
+                    description: error instanceof Error ? error.message : "Please try again later.",
+                    variant: "destructive",
+                  });
+                }
+              }}
+              disabled={!questionText.trim()}
+              className="bg-blue-600 hover:bg-blue-700"
+              data-testid="button-send-question"
+            >
+              <Send className="w-4 h-4 mr-2" />
+              Send Question
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* My Questions Modal */}
+      <MyQuestionsModal 
+        campaign={selectedCampaignForQuestions}
+        isOpen={showMyQuestionsModal}
+        onOpenChange={setShowMyQuestionsModal}
+        currentUserId={user?.id}
+      />
     </div>
   );
 }

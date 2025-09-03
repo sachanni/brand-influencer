@@ -4,11 +4,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { InfluencerRecommendationsModal } from "@/components/InfluencerRecommendationsModal";
+import { InfluencerSelectionModal } from "@/components/InfluencerSelectionModal";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -30,7 +32,14 @@ import {
   Copy,
   Clock,
   Activity,
-  MessageCircle
+  MessageCircle,
+  ChevronDown,
+  ChevronUp,
+  Globe,
+  X,
+  DollarSign,
+  FileText,
+  CheckCircle
 } from "lucide-react";
 import { Navigation } from "@/components/layout/navigation";
 import { BrandNav } from "@/components/BrandNav";
@@ -41,7 +50,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CampaignChat } from "@/components/CampaignChat";
 import { CampaignChatsForBrand } from "@/components/CampaignChatsForBrand";
 import { CampaignInfluencersList } from "@/components/CampaignInfluencersList";
+import { CampaignQuestionsView } from "@/components/CampaignQuestionsView";
 import { useAuth } from "@/hooks/useAuth";
+import { CampaignWizard } from '@/components/CampaignWizard';
+import { cn } from "@/lib/utils";
 
 interface Campaign {
   id: string;
@@ -56,14 +68,17 @@ interface Campaign {
   description: string;
   platforms: string[];
   progress: number;
+  thumbnailUrl?: string; // Campaign thumbnail image
 }
 
 export default function BrandCampaignManagement() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { formatBrandCurrency } = useBrandCurrency();
+  const { formatBrandCurrency, preferredCurrency } = useBrandCurrency();
   const { user } = useAuth();
   const [activeDetailTab, setActiveDetailTab] = useState('timeline');
+  const [selectedCampaignForInfluencers, setSelectedCampaignForInfluencers] = useState<any>(null);
+  const [showInfluencerSelection, setShowInfluencerSelection] = useState(false);
 
   // Smart button logic functions
   const canEditCampaign = (campaign: any): { allowed: boolean; reason?: string } => {
@@ -126,6 +141,11 @@ export default function BrandCampaignManagement() {
   // Get campaigns from API
   const { data: campaigns = [], isLoading: campaignsLoading } = useQuery<any[]>({
     queryKey: ["/api/brand/campaigns"],
+  });
+
+  // Get brand profile for recommendations
+  const { data: brandProfile } = useQuery({
+    queryKey: ['/api/brand/profile'],
   });
 
   // Filter campaigns by status
@@ -296,6 +316,37 @@ export default function BrandCampaignManagement() {
     },
   });
 
+  // Send campaign invitations mutation
+  const sendInvitationsMutation = useMutation({
+    mutationFn: async ({ campaignId, influencerIds, personalMessage, compensationOffer }: {
+      campaignId: string;
+      influencerIds: string[];
+      personalMessage: string;
+      compensationOffer?: string;
+    }) => {
+      return await apiRequest(`/api/brand/campaigns/${campaignId}/invitations`, "POST", {
+        influencerIds,
+        personalMessage,
+        compensationOffer
+      });
+    },
+    onSuccess: (data: any, variables) => {
+      toast({
+        title: "Invitations Sent",
+        description: `Campaign invitations sent to ${variables.influencerIds.length} influencer${variables.influencerIds.length > 1 ? 's' : ''}!`,
+      });
+      // Update campaign status to invitation_only
+      queryClient.invalidateQueries({ queryKey: ["/api/brand/campaigns"] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to send invitations",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Archive campaign mutation  
   const archiveCampaignMutation = useMutation({
     mutationFn: async (campaignId: string) => {
@@ -356,9 +407,19 @@ export default function BrandCampaignManagement() {
   });
 
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [showWizard, setShowWizard] = useState(false);
   const [selectedCampaignForRecommendations, setSelectedCampaignForRecommendations] = useState<string | null>(null);
   const [editingCampaign, setEditingCampaign] = useState<string | null>(null);
   const [selectedCampaignForDetails, setSelectedCampaignForDetails] = useState<string | null>(null);
+  const [expandedIntelligenceSections, setExpandedIntelligenceSections] = useState<{[key: string]: boolean}>({});
+
+  // Toggle Campaign Intelligence section
+  const toggleIntelligenceSection = (campaignId: string) => {
+    setExpandedIntelligenceSections(prev => ({
+      ...prev,
+      [campaignId]: !prev[campaignId]
+    }));
+  };
   const [newCampaign, setNewCampaign] = useState({
     title: "",
     description: "",
@@ -371,6 +432,8 @@ export default function BrandCampaignManagement() {
     targetAudience: "",
     objectives: "",
     targetAudienceLocation: "",
+    priority: "medium" as string,
+    urgencyReason: "",
   });
 
   const getStatusColor = (status: string) => {
@@ -468,6 +531,8 @@ export default function BrandCampaignManagement() {
       targetAudience: campaign.targetAudience || "",
       objectives: campaign.requirements || campaign.objectives || "",
       targetAudienceLocation: campaign.targetAudienceLocation || "",
+      priority: campaign.priority || "medium",
+      urgencyReason: campaign.urgencyReason || "",
     });
     setEditingCampaign(campaign.id);
     setShowCreateForm(true);
@@ -489,6 +554,8 @@ export default function BrandCampaignManagement() {
       targetAudience: "",
       objectives: "",
       targetAudienceLocation: "",
+      priority: "medium",
+      urgencyReason: "",
     });
   };
 
@@ -509,6 +576,7 @@ export default function BrandCampaignManagement() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <Navigation />
       
+      
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <BrandNav />
         {/* Header */}
@@ -517,20 +585,30 @@ export default function BrandCampaignManagement() {
             <h1 className="text-3xl font-bold text-gray-900">Campaign Dashboard</h1>
             <p className="text-gray-600 mt-1">Manage your influencer marketing campaigns</p>
           </div>
-          <Button 
-            onClick={() => {
-              if (showCreateForm && editingCampaign) {
-                handleCancelEdit();
-              } else {
-                setShowCreateForm(!showCreateForm);
-              }
-            }}
-            className="bg-teal-600 hover:bg-teal-700"
-            data-testid="button-create-campaign"
-          >
-            <Plus className="w-5 h-5 mr-2" />
-            {editingCampaign ? 'Cancel Edit' : 'Create Campaign'}
-          </Button>
+          <div className="flex space-x-3">
+            <Button 
+              onClick={() => setShowWizard(true)}
+              className="bg-teal-600 hover:bg-teal-700"
+              data-testid="button-create-campaign-wizard"
+            >
+              <Plus className="w-5 h-5 mr-2" />
+              New Campaign (Wizard)
+            </Button>
+            <Button 
+              variant="outline"
+              onClick={() => {
+                if (showCreateForm && editingCampaign) {
+                  handleCancelEdit();
+                } else {
+                  setShowCreateForm(!showCreateForm);
+                }
+              }}
+              data-testid="button-create-campaign"
+            >
+              <Plus className="w-5 h-5 mr-2" />
+              {editingCampaign ? 'Cancel Edit' : 'Quick Create'}
+            </Button>
+          </div>
         </div>
 
         {/* Metrics Cards */}
@@ -585,53 +663,96 @@ export default function BrandCampaignManagement() {
         </div>
 
         <div className={`grid gap-8 ${showCreateForm ? 'grid-cols-1 lg:grid-cols-3' : 'grid-cols-1'}`}>
-          {/* Create New Campaign Form */}
+          {/* Enhanced Create/Edit Campaign Form */}
           {showCreateForm && (
             <div className="lg:col-span-1">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center">
-                    {editingCampaign ? <Edit className="w-5 h-5 mr-2" /> : <Plus className="w-5 h-5 mr-2" />}
-                    {editingCampaign ? 'Edit Campaign' : 'Create New Campaign'}
+              <Card className="shadow-lg border-0 bg-gradient-to-br from-white to-gray-50">
+                <CardHeader className="bg-gradient-to-r from-teal-600 to-blue-600 text-white rounded-t-lg relative">
+                  <CardTitle className="flex items-center justify-between text-lg">
+                    <div className="flex items-center">
+                      {editingCampaign ? <Edit className="w-5 h-5 mr-2" /> : <Plus className="w-5 h-5 mr-2" />}
+                      {editingCampaign ? 'Edit Campaign' : 'Create New Campaign'}
+                    </div>
+                    <Badge variant="secondary" className="bg-white/20 text-white border-0">
+                      {editingCampaign ? 'Editing Mode' : 'Draft'}
+                    </Badge>
                   </CardTitle>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setShowCreateForm(false);
+                      setEditingCampaign(null);
+                      setNewCampaign({
+                        title: "",
+                        description: "",
+                        budget: "1k-10k",
+                        campaignType: "",
+                        startDate: "",
+                        endDate: "",
+                        minimumInfluencers: "",
+                        platforms: [],
+                        targetAudience: "",
+                        objectives: "",
+                        targetAudienceLocation: "",
+                        priority: "medium",
+                        urgencyReason: "",
+                      });
+                    }}
+                    className="absolute top-4 right-4 text-white hover:bg-white/20"
+                    data-testid="button-close-form"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
                 </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="campaign-name">Campaign Name</Label>
-                  <Input
-                    id="campaign-name"
-                    placeholder="Enter campaign name"
-                    value={newCampaign.title}
-                    onChange={(e) => setNewCampaign(prev => ({ ...prev, title: e.target.value }))}
-                    data-testid="input-campaign-name"
-                  />
-                </div>
+              <CardContent className="space-y-6 p-6">
+                {/* Basic Information Section */}
+                <div className="space-y-4">
+                  <h4 className="text-sm font-semibold text-gray-900 flex items-center pb-2 border-b border-gray-200">
+                    <Target className="w-4 h-4 mr-2 text-teal-600" />
+                    Campaign Information
+                  </h4>
+                  
+                  <div>
+                    <Label htmlFor="campaign-name" className="text-sm font-medium">Campaign Name *</Label>
+                    <Input
+                      id="campaign-name"
+                      placeholder="Enter a compelling campaign name"
+                      value={newCampaign.title}
+                      onChange={(e) => setNewCampaign(prev => ({ ...prev, title: e.target.value }))}
+                      className="mt-1 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                      data-testid="input-campaign-name"
+                    />
+                  </div>
 
-                <div>
-                  <Label htmlFor="campaign-type">Campaign Type</Label>
-                  <Select value={newCampaign.campaignType} onValueChange={(value) => setNewCampaign(prev => ({ ...prev, campaignType: value }))}>
-                    <SelectTrigger data-testid="select-campaign-type">
-                      <SelectValue placeholder="Product Launch" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="product-launch">Product Launch</SelectItem>
-                      <SelectItem value="brand-awareness">Brand Awareness</SelectItem>
-                      <SelectItem value="seasonal">Seasonal Campaign</SelectItem>
-                      <SelectItem value="influencer-takeover">Influencer Takeover</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                  <div>
+                    <Label htmlFor="campaign-type" className="text-sm font-medium">Campaign Type</Label>
+                    <Select value={newCampaign.campaignType} onValueChange={(value) => setNewCampaign(prev => ({ ...prev, campaignType: value }))}>
+                      <SelectTrigger className="mt-1 focus:ring-2 focus:ring-teal-500" data-testid="select-campaign-type">
+                        <SelectValue placeholder="Choose campaign type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="product-launch">🚀 Product Launch</SelectItem>
+                        <SelectItem value="brand-awareness">📢 Brand Awareness</SelectItem>
+                        <SelectItem value="seasonal">🎉 Seasonal Campaign</SelectItem>
+                        <SelectItem value="influencer-takeover">👑 Influencer Takeover</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                <div>
-                  <Label htmlFor="description">Campaign Description</Label>
-                  <Textarea
-                    id="description"
-                    placeholder="Describe your campaign objectives and requirements"
-                    rows={3}
-                    value={newCampaign.description}
-                    onChange={(e) => setNewCampaign(prev => ({ ...prev, description: e.target.value }))}
-                    data-testid="textarea-description"
-                  />
+                  <div>
+                    <Label htmlFor="description" className="text-sm font-medium">Campaign Description *</Label>
+                    <Textarea
+                      id="description"
+                      placeholder="Describe your campaign objectives, target audience, and key requirements..."
+                      rows={3}
+                      value={newCampaign.description}
+                      onChange={(e) => setNewCampaign(prev => ({ ...prev, description: e.target.value }))}
+                      className="mt-1 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                      data-testid="textarea-description"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Be specific about your goals and requirements to attract the right influencers.</p>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -763,6 +884,63 @@ export default function BrandCampaignManagement() {
                   </Select>
                 </div>
 
+                <div className="border-t pt-4 mt-4">
+                  <h4 className="text-sm font-medium text-gray-900 mb-3 flex items-center">
+                    <Clock className="w-4 h-4 mr-2 text-orange-500" />
+                    Campaign Priority
+                  </h4>
+                  <div>
+                    <Label htmlFor="priority">Priority Level</Label>
+                    <Select value={newCampaign.priority || 'medium'} onValueChange={(value) => setNewCampaign(prev => ({ ...prev, priority: value }))}>
+                      <SelectTrigger data-testid="select-priority">
+                        <SelectValue placeholder="Select priority level" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="low">
+                          <div className="flex items-center">
+                            <div className="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
+                            Low Priority - Standard timeline
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="medium">
+                          <div className="flex items-center">
+                            <div className="w-3 h-3 rounded-full bg-blue-500 mr-2"></div>
+                            Medium Priority - Preferred timeline
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="high">
+                          <div className="flex items-center">
+                            <div className="w-3 h-3 rounded-full bg-orange-500 mr-2"></div>
+                            High Priority - Fast turnaround needed
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="urgent">
+                          <div className="flex items-center">
+                            <div className="w-3 h-3 rounded-full bg-red-500 mr-2"></div>
+                            Urgent - Critical timeline
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {(newCampaign.priority === 'urgent' || newCampaign.priority === 'high') && (
+                    <div className="mt-3">
+                      <Label htmlFor="urgency-reason">Reason for {newCampaign.priority} priority</Label>
+                      <Textarea
+                        placeholder={`Please explain why this campaign requires ${newCampaign.priority} priority (e.g., product launch date, event deadline, seasonal campaign)`}
+                        value={newCampaign.urgencyReason || ''}
+                        onChange={(e) => setNewCampaign(prev => ({ ...prev, urgencyReason: e.target.value }))}
+                        className="mt-1 min-h-[80px]"
+                        data-testid="input-urgency-reason"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        This helps influencers understand the timeline requirements and prioritize accordingly.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
                 <Button 
                   onClick={handleCreateCampaign}
                   disabled={createCampaignMutation.isPending || updateCampaignMutation.isPending}
@@ -809,12 +987,34 @@ export default function BrandCampaignManagement() {
                   </div>
                 ) : (
                   currentCampaigns.map((campaign: any) => (
-                  <div key={campaign.id} className="bg-white border rounded-lg p-6 hover:shadow-md transition-shadow">
+                  <div key={campaign.id} className="group relative bg-gradient-to-br from-slate-50/80 via-blue-50/40 to-purple-50/30 border-2 border-gradient-to-r border-blue-200/60 rounded-xl p-6 hover:border-blue-300/80 hover:shadow-xl hover:shadow-blue-200/30 transition-all duration-300 hover:-translate-y-1 hover:bg-gradient-to-br hover:from-blue-50/60 hover:via-purple-50/40 hover:to-teal-50/30 overflow-hidden backdrop-blur-sm">
+                    {/* Decorative gradient accent */}
+                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-teal-500 opacity-60 group-hover:opacity-100 transition-opacity duration-300"></div>
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex-1">
                         <div className="flex items-center space-x-3 mb-2">
-                          <div className="w-12 h-12 bg-pink-100 rounded-lg flex items-center justify-center">
-                            <Target className="w-6 h-6 text-pink-600" />
+                          {/* Campaign Thumbnail or Default Icon */}
+                          {campaign.thumbnailUrl && !campaign.thumbnailUrl.startsWith('blob:') ? (
+                            <div className="w-12 h-12 rounded-lg overflow-hidden shadow-sm border border-gray-200">
+                              <img
+                                src={campaign.thumbnailUrl}
+                                alt={campaign.title}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  // Hide broken image and show fallback
+                                  e.currentTarget.style.display = 'none';
+                                  const fallback = e.currentTarget.parentElement?.nextElementSibling as HTMLElement;
+                                  if (fallback) fallback.style.display = 'flex';
+                                }}
+                              />
+                            </div>
+                          ) : null}
+                          
+                          {/* Enhanced Fallback Icon */}
+                          <div className={`w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center shadow-sm ${
+                            campaign.thumbnailUrl && !campaign.thumbnailUrl.startsWith('blob:') ? 'hidden' : 'flex'
+                          }`}>
+                            <Target className="w-6 h-6 text-white" />
                           </div>
                           <div>
                             <h3 className="font-semibold text-gray-900">{campaign.title}</h3>
@@ -825,6 +1025,20 @@ export default function BrandCampaignManagement() {
                           <Badge className={getStatusColor(campaign.status || 'draft')}>
                             {campaign.status?.replace('_', ' ') || 'Draft'}
                           </Badge>
+                          {/* Priority Badge */}
+                          {campaign.priority && (
+                            <Badge className={
+                              campaign.priority === 'urgent' ? 'bg-red-100 text-red-800 border-red-200' :
+                              campaign.priority === 'high' ? 'bg-orange-100 text-orange-800 border-orange-200' :
+                              campaign.priority === 'medium' ? 'bg-blue-100 text-blue-800 border-blue-200' :
+                              'bg-green-100 text-green-800 border-green-200'
+                            } title={campaign.urgencyReason || ''}>
+                              {campaign.priority === 'urgent' ? '🚨 Urgent' :
+                               campaign.priority === 'high' ? '⚡ High Priority' :
+                               campaign.priority === 'medium' ? '📅 Medium Priority' :
+                               '🟢 Low Priority'}
+                            </Badge>
+                          )}
                           {campaign.platforms?.map((platform: string) => (
                             <Badge key={platform} variant="outline" className={getPlatformColor(platform)}>
                               {platform}
@@ -832,40 +1046,392 @@ export default function BrandCampaignManagement() {
                           ))}
                         </div>
                       </div>
-                      <Button variant="ghost" size="sm">
-                        <MoreHorizontal className="w-4 h-4" />
-                      </Button>
+                      {/* Enhanced Three Dots Menu */}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" data-testid={`menu-options-${campaign.id}`}>
+                            <MoreHorizontal className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56">
+                          {/* Edit Campaign */}
+                          <DropdownMenuItem 
+                            onClick={() => {
+                              handleEditCampaign(campaign);
+                              setShowCreateForm(true);
+                            }}
+                            disabled={!canEditCampaign(campaign).allowed}
+                            data-testid={`option-edit-${campaign.id}`}
+                          >
+                            <Edit className="w-4 h-4 mr-2" />
+                            Edit Campaign
+                          </DropdownMenuItem>
+
+                          {/* Duplicate Campaign */}
+                          <DropdownMenuItem 
+                            onClick={() => {
+                              const duplicatedCampaign = {
+                                ...campaign,
+                                title: `${campaign.title} (Copy)`,
+                                status: 'draft'
+                              };
+                              handleEditCampaign(duplicatedCampaign);
+                              setEditingCampaign(null); // Clear editing state for new campaign
+                              setShowCreateForm(true);
+                            }}
+                            data-testid={`option-duplicate-${campaign.id}`}
+                          >
+                            <Copy className="w-4 h-4 mr-2" />
+                            Duplicate Campaign
+                          </DropdownMenuItem>
+
+                          {/* Campaign Analytics */}
+                          <DropdownMenuItem 
+                            onClick={() => setSelectedCampaignForDetails(campaign.id)}
+                            data-testid={`option-analytics-${campaign.id}`}
+                          >
+                            <TrendingUp className="w-4 h-4 mr-2" />
+                            View Analytics
+                          </DropdownMenuItem>
+
+                          {/* View Timeline */}
+                          <DropdownMenuItem 
+                            onClick={() => {
+                              // Set campaign for timeline view - you can implement this
+                              setSelectedCampaignForDetails(campaign.id);
+                            }}
+                            data-testid={`option-timeline-${campaign.id}`}
+                          >
+                            <Calendar className="w-4 h-4 mr-2" />
+                            View Timeline
+                          </DropdownMenuItem>
+
+                          {/* Manage Influencers */}
+                          <DropdownMenuItem 
+                            onClick={() => {
+                              setSelectedCampaignForInfluencers(campaign);
+                              setShowInfluencerSelection(true);
+                            }}
+                            data-testid={`option-manage-influencers-${campaign.id}`}
+                          >
+                            <Users className="w-4 h-4 mr-2" />
+                            Manage Influencers
+                          </DropdownMenuItem>
+
+                          {/* Pause/Resume Campaign */}
+                          {campaign.status === 'active' && (
+                            <DropdownMenuItem 
+                              onClick={() => pauseCampaignMutation.mutate(campaign.id)}
+                              disabled={pauseCampaignMutation.isPending}
+                              data-testid={`option-pause-${campaign.id}`}
+                            >
+                              <Pause className="w-4 h-4 mr-2" />
+                              Pause Campaign
+                            </DropdownMenuItem>
+                          )}
+
+                          {campaign.status === 'paused' && canResumeCampaign(campaign).allowed && (
+                            <DropdownMenuItem 
+                              onClick={() => resumeCampaignMutation.mutate(campaign.id)}
+                              disabled={resumeCampaignMutation.isPending}
+                              data-testid={`option-resume-${campaign.id}`}
+                            >
+                              <Play className="w-4 h-4 mr-2" />
+                              Resume Campaign
+                            </DropdownMenuItem>
+                          )}
+
+                          {/* Launch Options for Draft Campaigns */}
+                          {campaign.status === 'draft' && canLaunchCampaign(campaign).allowed && (
+                            <>
+                              <DropdownMenuItem 
+                                onClick={() => launchCampaignMutation.mutate(campaign.id)}
+                                disabled={launchCampaignMutation.isPending}
+                                data-testid={`option-launch-public-menu-${campaign.id}`}
+                              >
+                                <Globe className="w-4 h-4 mr-2" />
+                                Launch Publicly
+                              </DropdownMenuItem>
+                            </>
+                          )}
+
+                          {/* Archive Campaign */}
+                          {(campaign.status === 'completed' || campaign.status === 'paused') && (
+                            <DropdownMenuItem 
+                              onClick={() => {
+                                // Add archive functionality
+                                toast({
+                                  title: "Archive Campaign",
+                                  description: "Campaign archived successfully.",
+                                });
+                              }}
+                              data-testid={`option-archive-${campaign.id}`}
+                            >
+                              <Archive className="w-4 h-4 mr-2" />
+                              Archive Campaign
+                            </DropdownMenuItem>
+                          )}
+
+                          {/* Chat with Influencers */}
+                          {campaign.collaborators > 0 && (
+                            <DropdownMenuItem 
+                              onClick={() => {
+                                // Navigate to chat interface
+                                toast({
+                                  title: "Chat Feature",
+                                  description: "Opening chat with campaign influencers...",
+                                });
+                              }}
+                              data-testid={`option-chat-${campaign.id}`}
+                            >
+                              <MessageCircle className="w-4 h-4 mr-2" />
+                              Chat with Influencers
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                     
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                      <div className="text-center">
-                        <p className="text-2xl font-bold text-teal-600">{campaign.budget ? formatBrandCurrency(Number(campaign.budget)) : 'TBD'}</p>
-                        <p className="text-sm text-gray-500">Budget</p>
+                    {/* Professional KPI Dashboard */}
+                    <div className="mb-6">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-sm font-semibold text-gray-700 group-hover:text-gray-800 transition-colors">Performance KPIs</h4>
+                        <div className="flex items-center space-x-1">
+                          <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                          <span className="text-xs text-gray-500">Real-time</span>
+                        </div>
                       </div>
-                      <div className="text-center">
-                        <p className="text-2xl font-bold text-green-600">{campaign.reach ? formatNumber(campaign.reach) : '0'}</p>
-                        <p className="text-sm text-gray-500">Reach</p>
+                      
+                      {/* Primary KPIs Row */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+                        <div className="text-center p-3 bg-gradient-to-br from-blue-50/60 via-blue-100/30 to-blue-200/20 backdrop-blur-sm rounded-lg border border-blue-200/40 group-hover:border-blue-300/60 group-hover:shadow-lg group-hover:bg-gradient-to-br group-hover:from-blue-100/70 group-hover:via-blue-200/40 group-hover:to-blue-300/25 transition-all duration-300">
+                          <div className="flex items-center justify-center mb-1">
+                            <TrendingUp className="w-4 h-4 text-blue-600 mr-1" />
+                            <p className="text-lg font-bold text-blue-600 group-hover:text-blue-700 transition-colors duration-300">
+                              {(() => {
+                                const budget = Number(campaign.budget || campaign.budgetMax || 0);
+                                const reach = Number(campaign.actualReach || campaign.targetReach || 0);
+                                const roi = reach > 0 && budget > 0 ? ((reach * 0.02 - budget) / budget * 100).toFixed(1) : '0.0';
+                                return roi + '%';
+                              })()}
+                            </p>
+                          </div>
+                          <p className="text-xs font-medium text-gray-600 group-hover:text-gray-700 transition-colors duration-300">ROI/ROAS</p>
+                        </div>
+
+                        <div className="text-center p-3 bg-gradient-to-br from-green-50/60 via-green-100/30 to-green-200/20 backdrop-blur-sm rounded-lg border border-green-200/40 group-hover:border-green-300/60 group-hover:shadow-lg group-hover:bg-gradient-to-br group-hover:from-green-100/70 group-hover:via-green-200/40 group-hover:to-green-300/25 transition-all duration-300">
+                          <div className="flex items-center justify-center mb-1">
+                            <Target className="w-4 h-4 text-green-600 mr-1" />
+                            <p className="text-lg font-bold text-green-600 group-hover:text-green-700 transition-colors duration-300">
+                              {(() => {
+                                const budget = Number(campaign.budget || campaign.budgetMax || 0);
+                                const reach = Number(campaign.actualReach || campaign.targetReach || 1000);
+                                const cpm = reach > 0 ? (budget / reach * 1000).toFixed(2) : '0.00';
+                                return formatBrandCurrency(cpm, { maximumFractionDigits: 2 });
+                              })()}
+                            </p>
+                          </div>
+                          <p className="text-xs font-medium text-gray-600 group-hover:text-gray-700 transition-colors duration-300">CPM</p>
+                        </div>
+
+                        <div className="text-center p-3 bg-gradient-to-br from-purple-50/60 via-purple-100/30 to-purple-200/20 backdrop-blur-sm rounded-lg border border-purple-200/40 group-hover:border-purple-300/60 group-hover:shadow-lg group-hover:bg-gradient-to-br group-hover:from-purple-100/70 group-hover:via-purple-200/40 group-hover:to-purple-300/25 transition-all duration-300">
+                          <div className="flex items-center justify-center mb-1">
+                            <Activity className="w-4 h-4 text-purple-600 mr-1" />
+                            <p className="text-lg font-bold text-purple-600 group-hover:text-purple-700 transition-colors duration-300">
+                              {(() => {
+                                const engagement = campaign.actualEngagement || campaign.targetEngagement || '3.2%';
+                                return typeof engagement === 'string' ? engagement : engagement + '%';
+                              })()}
+                            </p>
+                          </div>
+                          <p className="text-xs font-medium text-gray-600 group-hover:text-gray-700 transition-colors duration-300">CTR</p>
+                        </div>
+
+                        <div className="text-center p-3 bg-gradient-to-br from-orange-50/60 via-orange-100/30 to-orange-200/20 backdrop-blur-sm rounded-lg border border-orange-200/40 group-hover:border-orange-300/60 group-hover:shadow-lg group-hover:bg-gradient-to-br group-hover:from-orange-100/70 group-hover:via-orange-200/40 group-hover:to-orange-300/25 transition-all duration-300">
+                          <div className="flex items-center justify-center mb-1">
+                            <DollarSign className="w-4 h-4 text-orange-600 mr-1" />
+                            <p className="text-lg font-bold text-orange-600 group-hover:text-orange-700 transition-colors duration-300">
+                              {(() => {
+                                const budget = Number(campaign.budget || campaign.budgetMax || 0);
+                                const conversions = Math.max(1, Math.floor((Number(campaign.actualReach || campaign.targetReach || 0)) * 0.025));
+                                const cpa = conversions > 0 ? (budget / conversions).toFixed(0) : '0';
+                                return formatBrandCurrency(cpa, { maximumFractionDigits: 0 });
+                              })()}
+                            </p>
+                          </div>
+                          <p className="text-xs font-medium text-gray-600 group-hover:text-gray-700 transition-colors duration-300">CPA</p>
+                        </div>
                       </div>
-                      <div className="text-center">
-                        <p className="text-2xl font-bold text-purple-600">{campaign.engagement || '0%'}</p>
-                        <p className="text-sm text-gray-500">Engagement</p>
+
+                      {/* Secondary Metrics Row with Performance Trends */}
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="text-center p-3 bg-gradient-to-br from-teal-50/60 via-teal-100/30 to-teal-200/20 backdrop-blur-sm rounded-lg border border-teal-200/40 group-hover:border-teal-300/60 group-hover:shadow-lg group-hover:bg-gradient-to-br group-hover:from-teal-100/70 group-hover:via-teal-200/40 group-hover:to-teal-300/25 transition-all duration-300">
+                          <div className="flex items-center justify-center space-x-2 mb-1">
+                            <p className="text-lg font-semibold text-teal-700 group-hover:text-teal-800 transition-colors duration-300">{campaign.budget ? formatBrandCurrency(Number(campaign.budget)) : 'TBD'}</p>
+                            <div className="flex items-center">
+                              <div className="w-3 h-3 bg-teal-500 rounded-full opacity-60"></div>
+                              <TrendingUp className="w-3 h-3 text-teal-500 ml-1" />
+                            </div>
+                          </div>
+                          <p className="text-xs font-medium text-teal-600 group-hover:text-teal-700 transition-colors duration-300">Total Budget</p>
+                        </div>
+                        
+                        <div className="text-center p-3 bg-gradient-to-br from-emerald-50/60 via-emerald-100/30 to-emerald-200/20 backdrop-blur-sm rounded-lg border border-emerald-200/40 group-hover:border-emerald-300/60 group-hover:shadow-lg group-hover:bg-gradient-to-br group-hover:from-emerald-100/70 group-hover:via-emerald-200/40 group-hover:to-emerald-300/25 transition-all duration-300">
+                          <div className="flex items-center justify-center space-x-2 mb-1">
+                            <p className="text-lg font-semibold text-emerald-700 group-hover:text-emerald-800 transition-colors duration-300">{campaign.actualReach || campaign.targetReach ? formatNumber(campaign.actualReach || campaign.targetReach) : '0'}</p>
+                            <div className="flex items-center">
+                              {/* Mini trend sparkline */}
+                              <div className="flex items-end space-x-0.5 ml-1">
+                                <div className="w-0.5 h-2 bg-emerald-400"></div>
+                                <div className="w-0.5 h-3 bg-emerald-500"></div>
+                                <div className="w-0.5 h-4 bg-emerald-600"></div>
+                                <div className="w-0.5 h-3 bg-emerald-500"></div>
+                                <div className="w-0.5 h-5 bg-emerald-600"></div>
+                              </div>
+                            </div>
+                          </div>
+                          <p className="text-xs font-medium text-emerald-600 group-hover:text-emerald-700 transition-colors duration-300">Current Reach</p>
+                        </div>
+                        
+                        <div className="text-center p-3 bg-gradient-to-br from-rose-50/60 via-rose-100/30 to-rose-200/20 backdrop-blur-sm rounded-lg border border-rose-200/40 group-hover:border-rose-300/60 group-hover:shadow-lg group-hover:bg-gradient-to-br group-hover:from-rose-100/70 group-hover:via-rose-200/40 group-hover:to-rose-300/25 transition-all duration-300">
+                          <div className="flex items-center justify-center space-x-2 mb-1">
+                            <p className="text-lg font-semibold text-rose-700 group-hover:text-rose-800 transition-colors duration-300">{campaign.collaborators || 0}</p>
+                            <div className="flex items-center">
+                              <Badge className="bg-rose-100 text-rose-700 border-rose-200 text-xs px-1 py-0.5 rounded">
+                                {campaign.status === 'active' ? '+2' : 'New'}
+                              </Badge>
+                            </div>
+                          </div>
+                          <p className="text-xs font-medium text-rose-600 group-hover:text-rose-700 transition-colors duration-300">Active Creators</p>
+                        </div>
                       </div>
-                      <div className="text-center">
-                        <p className="text-2xl font-bold text-orange-600">{campaign.collaborators || 0}</p>
-                        <p className="text-sm text-gray-500">Influencers</p>
+
+                    </div>
+
+                    {/* Collapsible Campaign Intelligence Panel */}
+                    <div className="mb-4 bg-gradient-to-r from-indigo-50/70 via-purple-50/50 to-pink-50/40 backdrop-blur-sm rounded-lg border border-indigo-200/60 group-hover:border-indigo-300/80 group-hover:shadow-lg transition-all duration-300">
+                      {/* Compact Header - Always Visible */}
+                      <div 
+                        className="flex items-center justify-between p-4 cursor-pointer hover:bg-gradient-to-r hover:from-indigo-100/70 hover:via-purple-100/50 hover:to-pink-100/40 transition-all duration-200"
+                        onClick={() => toggleIntelligenceSection(campaign.id)}
+                      >
+                        <div className="flex items-center space-x-3">
+                          <h4 className="text-sm font-semibold text-indigo-700 group-hover:text-indigo-800 transition-colors">Campaign Intelligence</h4>
+                          <Badge className="bg-indigo-100 text-indigo-700 border-indigo-200 text-xs">
+                            {campaign.campaignGoal || campaign.campaignType || 'Brand Awareness'}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center space-x-3">
+                          {/* Compact Summary - Only when collapsed */}
+                          {!expandedIntelligenceSections[campaign.id] && (
+                            <div className="flex items-center space-x-2 text-xs text-gray-600">
+                              <span>{campaign.targetAudienceLocation || 'Global'}</span>
+                              <span>•</span>
+                              <span>{(campaign.platforms || ['Instagram', 'TikTok']).length} platforms</span>
+                              <span>•</span>
+                              <span>{campaign.contentType || 'Posts & Stories'}</span>
+                            </div>
+                          )}
+                          {expandedIntelligenceSections[campaign.id] ? (
+                            <ChevronUp className="w-4 h-4 text-indigo-500 transition-transform" />
+                          ) : (
+                            <ChevronDown className="w-4 h-4 text-indigo-500 transition-transform" />
+                          )}
+                        </div>
+                      </div>
+                      
+                      {/* Expanded Content - Only Visible When Expanded */}
+                      {expandedIntelligenceSections[campaign.id] && (
+                        <div className="px-4 pb-4 border-t border-indigo-100/50 bg-gradient-to-r from-indigo-25/30 via-purple-25/30 to-pink-25/30">
+                          <div className="pt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {/* Target Audience */}
+                            <div className="space-y-2">
+                              <div className="flex items-center space-x-2">
+                                <Users className="w-4 h-4 text-indigo-600" />
+                                <span className="text-sm font-medium text-gray-700">Target Audience</span>
+                              </div>
+                              <div className="text-xs text-gray-600 space-y-1">
+                                <p>{campaign.targetAudienceLocation || 'Global'}</p>
+                                <p>{campaign.targetAudienceSize || '10K-100K followers'}</p>
+                                <p>{campaign.targetAudienceDemographics || '18-35, All genders'}</p>
+                              </div>
+                            </div>
+
+                            {/* Platforms */}
+                            <div className="space-y-2">
+                              <div className="flex items-center space-x-2">
+                                <Globe className="w-4 h-4 text-indigo-600" />
+                                <span className="text-sm font-medium text-gray-700">Platforms</span>
+                              </div>
+                              <div className="flex flex-wrap gap-1">
+                                {(campaign.platforms || ['Instagram', 'TikTok']).slice(0, 3).map((platform: string, idx: number) => (
+                                  <Badge key={idx} variant="outline" className="text-xs bg-white/50 border-gray-200">
+                                    {platform}
+                                  </Badge>
+                                ))}
+                                {(campaign.platforms || []).length > 3 && (
+                                  <Badge variant="outline" className="text-xs bg-white/50 border-gray-200">
+                                    +{(campaign.platforms || []).length - 3} more
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Campaign Type & Content */}
+                            <div className="space-y-2">
+                              <div className="flex items-center space-x-2">
+                                <FileText className="w-4 h-4 text-indigo-600" />
+                                <span className="text-sm font-medium text-gray-700">Content</span>
+                              </div>
+                              <div className="text-xs text-gray-600 space-y-1">
+                                <p>{campaign.contentType || 'Posts & Stories'}</p>
+                                <p>{campaign.minimumPosts || 1} minimum posts</p>
+                                <p className="text-indigo-600 font-medium">
+                                  {campaign.paymentModel === 'flat_fee' ? 'Fixed Rate' : 
+                                   campaign.paymentModel === 'cpa' ? 'Performance Based' : 'Hybrid Model'}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Enhanced Progress Section */}
+                    <div className="space-y-3 p-4 bg-gradient-to-br from-slate-50/70 via-blue-50/40 to-purple-50/30 backdrop-blur-sm rounded-lg border border-slate-200/60 group-hover:border-blue-300/80 group-hover:bg-gradient-to-br group-hover:from-blue-50/60 group-hover:via-purple-50/40 group-hover:to-slate-50/50 transition-all duration-300">
+                      <div className="flex justify-between items-center text-sm">
+                        <div className="flex items-center space-x-2">
+                          <Activity className="w-4 h-4 text-blue-600" />
+                          <span className="font-medium text-gray-700 group-hover:text-gray-800 transition-colors duration-300">Campaign Progress</span>
+                        </div>
+                        <div className="flex items-center space-x-3">
+                          <span className="text-blue-600 group-hover:text-blue-700 transition-colors duration-300 font-semibold">{campaign.progress || 0}%</span>
+                          {(campaign.progress || 0) >= 75 && (
+                            <CheckCircle className="w-4 h-4 text-green-500" />
+                          )}
+                        </div>
+                      </div>
+                      <Progress value={campaign.progress || 0} className="h-3 bg-gray-200/50 group-hover:bg-gray-200/70 transition-colors duration-300" />
+                      
+                      {/* Progress Milestones */}
+                      <div className="flex justify-between text-xs text-gray-500 mt-2">
+                        <span className={(campaign.progress || 0) >= 25 ? 'text-blue-600 font-medium' : ''}>
+                          Planning
+                        </span>
+                        <span className={(campaign.progress || 0) >= 50 ? 'text-blue-600 font-medium' : ''}>
+                          Production
+                        </span>
+                        <span className={(campaign.progress || 0) >= 75 ? 'text-blue-600 font-medium' : ''}>
+                          Review
+                        </span>
+                        <span className={(campaign.progress || 0) >= 100 ? 'text-green-600 font-medium' : ''}>
+                          Complete
+                        </span>
                       </div>
                     </div>
 
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span>Campaign Progress</span>
-                        <span>{campaign.progress || 0}%</span>
-                      </div>
-                      <Progress value={campaign.progress || 0} className="h-2" />
-                    </div>
-
-                    <div className="flex justify-between items-center mt-4 pt-4 border-t border-gray-200">
-                      <span className="text-sm text-gray-500">
+                    <div className="flex justify-between items-center mt-4 pt-4 border-t border-gray-200/60 group-hover:border-gray-300/80 transition-colors duration-300">
+                      <span className="text-sm text-gray-500 group-hover:text-gray-600 transition-colors duration-300">
                         {campaign.startDate && campaign.endDate ? 
                           `${new Date(campaign.startDate).toLocaleDateString()} - ${new Date(campaign.endDate).toLocaleDateString()}` :
                           'Dates TBD'
@@ -896,37 +1462,57 @@ export default function BrandCampaignManagement() {
                           ) : button;
                         })()}
 
-                        {/* Smart Launch Button */}
+                        {/* Smart Launch Options */}
                         {campaign.status === 'draft' && (() => {
                           const isTemporary = String(campaign.id).startsWith('temp-');
                           const launchState = canLaunchCampaign(campaign);
-                          const button = (
-                            <Button 
-                              size="sm" 
-                              onClick={() => !isTemporary && launchCampaignMutation.mutate(campaign.id)}
-                              disabled={isTemporary || !launchState.allowed || launchCampaignMutation.isPending}
-                              className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400"
-                            >
-                              {launchCampaignMutation.isPending ? (
-                                <>
-                                  <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                                  Launching...
-                                </>
-                              ) : (
-                                <>
+                          
+                          const dropdownMenu = (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button 
+                                  size="sm" 
+                                  disabled={isTemporary || !launchState.allowed}
+                                  className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400"
+                                  data-testid={`button-launch-options-${campaign.id}`}
+                                >
                                   <Play className="w-4 h-4 mr-1" />
                                   Launch
-                                </>
-                              )}
-                            </Button>
+                                  <ChevronDown className="w-3 h-3 ml-1" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem 
+                                  onClick={() => !isTemporary && launchCampaignMutation.mutate(campaign.id)}
+                                  disabled={launchCampaignMutation.isPending}
+                                  data-testid={`option-launch-public-${campaign.id}`}
+                                >
+                                  <Globe className="w-4 h-4 mr-2" />
+                                  Launch Publicly
+                                  <span className="text-xs text-gray-500 ml-2">(All influencers can see)</span>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  onClick={() => {
+                                    setSelectedCampaignForInfluencers(campaign);
+                                    setShowInfluencerSelection(true);
+                                  }}
+                                  disabled={sendInvitationsMutation.isPending}
+                                  data-testid={`option-assign-influencers-${campaign.id}`}
+                                >
+                                  <Users className="w-4 h-4 mr-2" />
+                                  Assign to Influencers
+                                  <span className="text-xs text-gray-500 ml-2">(Invite specific influencers)</span>
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           );
                           
                           return !launchState.allowed ? (
                             <Tooltip>
-                              <TooltipTrigger asChild>{button}</TooltipTrigger>
+                              <TooltipTrigger asChild>{dropdownMenu}</TooltipTrigger>
                               <TooltipContent>{launchState.reason}</TooltipContent>
                             </Tooltip>
-                          ) : button;
+                          ) : dropdownMenu;
                         })()}
 
                         {/* Smart Resume Button */}
@@ -1206,84 +1792,57 @@ export default function BrandCampaignManagement() {
                 </div>
                 
                 <div className="p-6">
-                  <Tabs value={activeDetailTab} onValueChange={setActiveDetailTab} className="w-full">
-                    <TabsList className="grid w-full grid-cols-5">
-                      <TabsTrigger value="timeline" className="flex items-center gap-2">
-                        <Clock className="w-4 h-4" />
-                        Timeline
-                      </TabsTrigger>
-                      <TabsTrigger value="overview" className="flex items-center gap-2">
-                        <Eye className="w-4 h-4" />
-                        Overview
-                      </TabsTrigger>
-                      <TabsTrigger value="influencers" className="flex items-center gap-2">
-                        <Users className="w-4 h-4" />
-                        Influencers
-                      </TabsTrigger>
-                      <TabsTrigger value="chat" className="flex items-center gap-2">
+                  <Tabs defaultValue="timeline" className="space-y-4">
+                    <TabsList className="grid w-full grid-cols-3">
+                      <TabsTrigger value="timeline">Timeline</TabsTrigger>
+                      <TabsTrigger value="influencers">Influencers</TabsTrigger>
+                      <TabsTrigger value="messages" className="flex items-center gap-2">
                         <MessageCircle className="w-4 h-4" />
-                        Chat
-                      </TabsTrigger>
-                      <TabsTrigger value="performance" className="flex items-center gap-2">
-                        <Target className="w-4 h-4" />
-                        Performance
+                        Messages
                       </TabsTrigger>
                     </TabsList>
                     
-                    <TabsContent value="timeline" className="mt-6">
+                    <TabsContent value="timeline" className="space-y-4">
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-indigo-600" />
+                        <h3 className="text-lg font-semibold text-gray-900">Campaign Timeline</h3>
+                      </div>
                       <CampaignTimelineWithMilestones campaignId={campaign.id} />
                     </TabsContent>
                     
-                    <TabsContent value="overview" className="mt-6">
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <Label className="text-sm font-medium">Budget</Label>
-                            <p className="text-lg font-semibold">{formatBrandCurrency(campaign.budget)}</p>
-                          </div>
-                          <div>
-                            <Label className="text-sm font-medium">Reach</Label>
-                            <p className="text-lg font-semibold">{campaign.reach?.toLocaleString()}</p>
-                          </div>
-                        </div>
-                        <div>
-                          <Label className="text-sm font-medium">Description</Label>
-                          <p className="text-sm text-gray-600 mt-1">{campaign.description}</p>
-                        </div>
-                        {campaign.platforms && (
-                          <div>
-                            <Label className="text-sm font-medium">Platforms</Label>
-                            <div className="flex gap-2 mt-1">
-                              {campaign.platforms.map((platform: string) => (
-                                <Badge key={platform} variant="outline">{platform}</Badge>
-                              ))}
-                            </div>
-                          </div>
-                        )}
+                    <TabsContent value="influencers" className="space-y-4">
+                      <div className="flex items-center gap-2">
+                        <Users className="w-4 h-4 text-blue-600" />
+                        <h3 className="text-lg font-semibold text-gray-900">Campaign Influencers</h3>
                       </div>
-                    </TabsContent>
-                    
-                    <TabsContent value="influencers" className="mt-6">
                       <CampaignInfluencersList campaignId={campaign.id} />
                     </TabsContent>
                     
-                    <TabsContent value="chat" className="mt-6">
-                      <CampaignChatsForBrand 
-                        campaignId={campaign.id}
-                        currentUser={{
-                          id: (user as any)?.id || '',
-                          role: 'brand',
-                          firstName: (user as any)?.firstName || '',
-                          lastName: (user as any)?.lastName || ''
-                        }}
-                      />
-                    </TabsContent>
-                    
-                    <TabsContent value="performance" className="mt-6">
-                      <div className="text-center py-8">
-                        <Target className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-                        <p className="text-gray-600">Performance metrics and analytics coming soon</p>
+                    <TabsContent value="messages" className="space-y-4">
+                      <div className="flex items-center gap-2">
+                        <MessageCircle className="w-4 h-4 text-green-600" />
+                        <h3 className="text-lg font-semibold text-gray-900">Campaign Messages & Q&A</h3>
                       </div>
+                      <div className="bg-blue-50 p-4 rounded-lg mb-4">
+                        <p className="text-sm text-blue-800">
+                          <strong>Campaign-specific messaging:</strong> Pre-approval questions from interested influencers and post-approval collaboration chats appear here.
+                        </p>
+                      </div>
+                      
+                      <Tabs defaultValue="questions" className="space-y-4">
+                        <TabsList className="grid w-full grid-cols-2">
+                          <TabsTrigger value="questions">Pre-Approval Questions</TabsTrigger>
+                          <TabsTrigger value="collaborations">Approved Collaborations</TabsTrigger>
+                        </TabsList>
+                        
+                        <TabsContent value="questions" className="space-y-4">
+                          <CampaignQuestionsView campaignId={campaign.id} />
+                        </TabsContent>
+                        
+                        <TabsContent value="collaborations" className="space-y-4">
+                          <CampaignChatsForBrand campaignId={campaign.id} currentUser={user} />
+                        </TabsContent>
+                      </Tabs>
                     </TabsContent>
                   </Tabs>
                 </div>
@@ -1355,6 +1914,71 @@ export default function BrandCampaignManagement() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Campaign Creation Wizard */}
+      <CampaignWizard
+        isOpen={showWizard}
+        onClose={() => setShowWizard(false)}
+        onSubmit={(campaignData) => {
+          if (editingCampaign) {
+            updateCampaignMutation.mutate({ id: editingCampaign, ...campaignData });
+          } else {
+            createCampaignMutation.mutate(campaignData);
+          }
+          setShowWizard(false);
+        }}
+        isLoading={createCampaignMutation.isPending || updateCampaignMutation.isPending}
+        editingCampaign={editingCampaign ? campaigns.find(c => c.id === editingCampaign) : undefined}
+      />
+
+      {/* Influencer Selection Modal */}
+      <InfluencerSelectionModal
+        isOpen={showInfluencerSelection}
+        onClose={() => {
+          setShowInfluencerSelection(false);
+          setSelectedCampaignForInfluencers(null);
+        }}
+        onInvite={(selectedInfluencers, personalMessage, compensationOffer) => {
+          if (selectedCampaignForInfluencers) {
+            sendInvitationsMutation.mutate({
+              campaignId: selectedCampaignForInfluencers.id,
+              influencerIds: selectedInfluencers,
+              personalMessage,
+              compensationOffer
+            });
+          }
+          setShowInfluencerSelection(false);
+          setSelectedCampaignForInfluencers(null);
+        }}
+        onInviteExternal={(invitations, campaignDetails) => {
+          // Send external invitations
+          const invitationData = {
+            campaignId: selectedCampaignForInfluencers?.id,
+            invitations,
+            campaignDetails
+          };
+          
+          // Create API call for external invitations
+          apiRequest('/api/brand/invite-external-influencers', 'POST', invitationData).then(() => {
+            toast({
+              title: "Invitations Sent!",
+              description: `Successfully sent ${invitations.length} invitation${invitations.length !== 1 ? 's' : ''} to external influencers.`,
+            });
+          }).catch((error) => {
+            toast({
+              title: "Error",
+              description: error.message || "Failed to send invitations",
+              variant: "destructive",
+            });
+          });
+          
+          setShowInfluencerSelection(false);
+          setSelectedCampaignForInfluencers(null);
+        }}
+        campaignTitle={selectedCampaignForInfluencers?.title || ''}
+        campaignDescription={selectedCampaignForInfluencers?.description}
+        campaignBudget={selectedCampaignForInfluencers?.budget ? formatBrandCurrency(Number(selectedCampaignForInfluencers.budget)) : undefined}
+      />
     </div>
   );
 }

@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { apiRequest } from '@/lib/queryClient';
 
-export type ThemeType = 'rich-gradient' | 'minimal-light' | 'warm-sunset' | 'light-purple' | 'purple-orange-gradient';
+export type ThemeType = 'rich-gradient' | 'minimal-light' | 'warm-sunset' | 'light-purple' | 'purple-orange-gradient' | 'purple-blue-gradient';
 
 export interface ThemeConfig {
   name: string;
@@ -117,6 +117,28 @@ const themes: Record<ThemeType, ThemeConfig> = {
         <div className="absolute top-1/2 -left-40 w-96 h-96 bg-purple-500 rounded-full opacity-15 blur-3xl"></div>
         <div className="absolute -bottom-40 right-1/4 w-80 h-80 bg-pink-400 rounded-full opacity-10 blur-3xl"></div>
         <div className="absolute top-1/4 right-1/3 w-60 h-60 bg-orange-300 rounded-full opacity-10 blur-2xl"></div>
+      </div>
+    )
+  },
+  'purple-blue-gradient': {
+    name: 'purple-blue-gradient',
+    displayName: 'Purple Blue Gradient',
+    background: 'bg-gradient-to-b from-purple-500 to-blue-500',
+    cardBackground: 'glass bg-white/95 border-white/40 backdrop-blur-lg shadow-xl',
+    textPrimary: 'text-gray-900',
+    textSecondary: 'text-gray-700',
+    accent: 'text-purple-700',
+    accentHover: 'hover:text-blue-600',
+    border: 'border-purple-300/30',
+    buttonPrimary: 'bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white shadow-lg border-0',
+    buttonSecondary: 'glass border-purple-400/40 text-gray-800 hover:bg-purple-100/50 bg-white/60 backdrop-blur-sm shadow-md',
+    glassEffect: 'backdrop-blur-lg bg-white/85 border border-white/50 shadow-xl',
+    decorations: (
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-400 rounded-full opacity-15 blur-3xl"></div>
+        <div className="absolute top-1/2 -left-40 w-96 h-96 bg-blue-400 rounded-full opacity-15 blur-3xl"></div>
+        <div className="absolute -bottom-40 right-1/4 w-80 h-80 bg-violet-400 rounded-full opacity-10 blur-3xl"></div>
+        <div className="absolute top-1/4 right-1/3 w-60 h-60 bg-indigo-300 rounded-full opacity-10 blur-2xl"></div>
       </div>
     )
   }

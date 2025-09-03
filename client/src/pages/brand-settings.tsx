@@ -66,6 +66,12 @@ function ThemeSelector() {
       name: 'Purple Orange Gradient',
       description: 'Dynamic gradient theme transitioning from purple to orange',
       preview: 'linear-gradient(90deg, #800080 0%, #FFA500 100%)'
+    },
+    { 
+      value: 'purple-blue-gradient' as ThemeType, 
+      name: 'Purple Blue Gradient',
+      description: 'Beautiful vertical gradient transitioning from purple to blue',
+      preview: 'linear-gradient(180deg, #8b5cf6 0%, #3b82f6 100%)'
     }
   ];
 

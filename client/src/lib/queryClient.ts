@@ -38,7 +38,14 @@ export const getQueryFn: <T>(options: {
     }
 
     await throwIfResNotOk(res);
-    return await res.json();
+    try {
+      const data = await res.json();
+      // Ensure returned data is properly serializable
+      return JSON.parse(JSON.stringify(data));
+    } catch (error) {
+      console.warn('JSON parsing error:', error);
+      return null;
+    }
   };
 
 export const queryClient = new QueryClient({
@@ -47,8 +54,10 @@ export const queryClient = new QueryClient({
       queryFn: getQueryFn({ on401: "throw" }),
       refetchInterval: false,
       refetchOnWindowFocus: false,
-      staleTime: Infinity,
+      staleTime: 5000,
       retry: false,
+      // Disable persistence to prevent JSON serialization errors
+      gcTime: 0
     },
     mutations: {
       retry: false,

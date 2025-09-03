@@ -294,45 +294,14 @@ export function CampaignTimelineWithMilestones({ campaignId }: CampaignTimelineW
 
   return (
     <div className="space-y-6">
-      {/* Progress Overview */}
-      <Card className="overflow-hidden shadow-xl border-0 bg-gradient-to-br from-purple-600 via-purple-500 to-orange-500">
-        <CardContent className="p-6 relative">
-          <div className="absolute inset-0 bg-white/10 backdrop-blur-sm"></div>
-          <div className="relative z-10">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-lg font-bold text-white">Campaign Progress</h3>
-                <p className="text-sm text-white/90">
-                  {displayMilestones.filter((m: Milestone) => m.status === 'completed').length} of {displayMilestones.length} milestones completed
-                </p>
-              </div>
-              <div className="text-right">
-                <div className="text-3xl font-bold text-white drop-shadow-lg">{Math.round(calculateProgress())}%</div>
-                <Badge className="bg-white/20 backdrop-blur-sm text-white border-white/30 font-semibold">
-                  {campaign?.status || 'Active'}
-                </Badge>
-              </div>
-            </div>
-            <div className="relative h-4 bg-white/20 rounded-full overflow-hidden backdrop-blur-sm">
-              <div 
-                className="absolute inset-y-0 left-0 bg-gradient-to-r from-green-400 to-emerald-400 rounded-full transition-all duration-500 ease-out shadow-lg"
-                style={{ width: `${calculateProgress()}%` }}
-              >
-                <div className="absolute inset-0 bg-white/30 animate-pulse"></div>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* View Toggle */}
-      <div className="flex gap-3 p-1 bg-gray-100 rounded-lg">
+      <div className="flex gap-3 p-1 bg-slate-100/60 rounded-lg border border-slate-200/50">
         <Button
           variant={activeView === 'milestones' ? 'default' : 'ghost'}
           onClick={() => setActiveView('milestones')}
           className={activeView === 'milestones' ? 
-            'bg-gradient-to-r from-purple-500 to-orange-500 text-white shadow-lg hover:shadow-xl transition-all' : 
-            'hover:bg-white'}
+            'bg-gradient-to-r from-slate-600 to-indigo-600 text-white shadow-md hover:shadow-lg transition-all hover:from-slate-700 hover:to-indigo-700' : 
+            'hover:bg-white/80 text-slate-600 hover:text-slate-800'}
         >
           <Flag className="w-4 h-4 mr-2" />
           Milestones
@@ -341,8 +310,8 @@ export function CampaignTimelineWithMilestones({ campaignId }: CampaignTimelineW
           variant={activeView === 'activity' ? 'default' : 'ghost'}
           onClick={() => setActiveView('activity')}
           className={activeView === 'activity' ? 
-            'bg-gradient-to-r from-purple-500 to-orange-500 text-white shadow-lg hover:shadow-xl transition-all' : 
-            'hover:bg-white'}
+            'bg-gradient-to-r from-slate-600 to-indigo-600 text-white shadow-md hover:shadow-lg transition-all hover:from-slate-700 hover:to-indigo-700' : 
+            'hover:bg-white/80 text-slate-600 hover:text-slate-800'}
         >
           <Activity className="w-4 h-4 mr-2" />
           Recent Activity
